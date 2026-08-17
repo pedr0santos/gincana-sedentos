@@ -1,0 +1,14 @@
+import { GameNav } from "@/components/GameNav";
+import { formatPoints } from "@/lib/game";
+import { trpc } from "@/lib/trpc";
+import { Loader2, Radio, Trophy } from "lucide-react";
+
+export default function Ranking() {
+  const { data, isLoading } = trpc.game.ranking.useQuery(undefined, { refetchInterval: 8_000, refetchOnMount: "always" });
+  if (isLoading) return <div className="auth-screen"><Loader2 className="animate-spin text-teal-200" /></div>;
+  const teams = data?.teams ?? []; const players = data?.participants ?? [];
+  return <div className="app-bg"><GameNav /><main className="page-shell"><p className="eyebrow"><Radio className="mr-1 inline" size={12} /> atualização enquanto esta tela estiver aberta</p><h1 className="page-title">A corrida pelo <span className="text-orange-200">topo.</span></h1><p className="page-intro">A classificação reflete os pontos computados no servidor após cada rodada concluída.</p>
+    <section className="mt-8 grid gap-4 lg:grid-cols-[1.35fr_.65fr]"><article className="glass-card overflow-hidden"><div className="border-b border-white/10 p-6"><Trophy className="text-orange-200" size={22} /><h2 className="mt-3 font-display text-2xl font-bold">Equipes</h2></div><div className="ranking-list">{teams.map(team => <div className="team-row py-5" key={team.id}><span className="rank-number text-base">#{team.rank}</span><div className="team-detail"><span className="team-avatar h-11 w-11 text-xl" style={{ background: team.color }}>{team.symbol}</span><div className="min-w-0 flex-1"><div className="flex justify-between gap-3"><p className="team-name text-base">{team.name}</p><span className="text-xs text-slate-400">{team.memberCount} pessoas</span></div><div className="mt-3"><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(5, (team.points / Math.max(teams[0]?.points || 1, 1)) * 100)}%`, background: `linear-gradient(90deg, ${team.color}, ${team.accentColor})` }} /></div></div></div></div><span className="team-points text-base">{formatPoints(team.points)}</span></div>)}</div></article>
+      <article className="glass-card p-5"><p className="eyebrow">Ranking individual</p><h2 className="mt-2 font-display text-xl font-bold">Jogadores em destaque</h2><div className="mt-4">{players.slice(0, 8).map(player => { const team = teams.find(item => item.id === player.teamId); return <div className="team-row" key={player.participantId}><span className="rank-number">{player.rank}º</span><div className="min-w-0"><p className="team-name truncate">{player.nickname}</p><p className="mt-1 text-[11px] text-slate-400">{team?.name ?? "Sem equipe"}</p></div><span className="team-points">{formatPoints(player.points)}</span></div>; })}{!players.length && <div className="empty-panel">Ainda não há pontos individuais contabilizados.</div>}</div></article></section>
+  </main></div>;
+}
