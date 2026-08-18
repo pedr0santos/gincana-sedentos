@@ -1,7 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GameNav } from "@/components/GameNav";
 import { RoundAlerts } from "@/components/RoundAlerts";
-import { startLogin } from "@/const";
 import { formatPoints, formatTime, getCountdown, stateMeta } from "@/lib/game";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, ChevronRight, Loader2, Radio, Timer, Trophy, UsersRound } from "lucide-react";
@@ -24,7 +23,7 @@ export default function Home() {
     if (data && !data.profile) setLocation("/cadastro");
   }, [data, setLocation]);
   if (loading || (user && isLoading)) return <div className="auth-screen"><Loader2 className="animate-spin text-teal-200" /></div>;
-  if (!user) return <div className="auth-screen"><div className="glass-card auth-panel"><button className="brand-mark"><span className="brand-orbit" /><span>SEDENTOS</span></button><div className="auth-geometry"><span /><span /><span /></div><h1 className="auth-title">A disputa pede <em>presença.</em></h1><p className="auth-copy">Entre para responder rodadas, acompanhar sua equipe e conquistar cada posição do ranking.</p><button className="primary-action mx-auto" onClick={() => startLogin()}><Radio size={17} /> Entrar na gincana</button></div></div>;
+  if (!user) return <div className="auth-screen"><div className="glass-card auth-panel"><button className="brand-mark"><span className="brand-orbit" /><span>SEDENTOS</span></button><div className="auth-geometry"><span /><span /><span /></div><h1 className="auth-title">A disputa pede <em>presença.</em></h1><p className="auth-copy">Entre para responder rodadas, acompanhar sua equipe e conquistar cada posição do ranking.</p><button className="primary-action mx-auto" onClick={() => setLocation("/login")}><Radio size={17} /> Entrar na gincana</button></div></div>;
   if (!data?.profile) return null;
   const { profile, personal, team, ranking, featuredRound } = data;
   const status = featuredRound ? stateMeta[featuredRound.state] : stateMeta.AGUARDANDO;

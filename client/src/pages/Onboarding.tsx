@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GameNav } from "@/components/GameNav";
-import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { Check, ImageUp, Loader2, LockKeyhole } from "lucide-react";
 import { ChangeEvent, useState } from "react";
@@ -42,7 +41,7 @@ export default function Onboarding() {
   }
 
   if (loading) return <div className="auth-screen"><Loader2 className="animate-spin text-teal-200" /></div>;
-  if (!user) return <div className="auth-screen"><div className="glass-card auth-panel"><button className="brand-mark"><span className="brand-orbit" /><span>SEDENTOS</span></button><h1 className="auth-title">Entre na <em>arena.</em></h1><p className="auth-copy">Use sua conta para participar. A segurança do acesso é administrada pelo provedor de autenticação da plataforma.</p><button className="primary-action mx-auto" onClick={() => startLogin()}><LockKeyhole size={17} /> Entrar para continuar</button></div></div>;
+  if (!user) return <div className="auth-screen"><div className="glass-card auth-panel"><button className="brand-mark"><span className="brand-orbit" /><span>SEDENTOS</span></button><h1 className="auth-title">Entre na <em>arena.</em></h1><p className="auth-copy">Use sua conta para participar da gincana.</p><button className="primary-action mx-auto" onClick={() => setLocation("/login")}><LockKeyhole size={17} /> Entrar para continuar</button></div></div>;
 
   return <div className="app-bg"><GameNav /><main className="page-shell"><p className="eyebrow">Etapa 1 de 1 · perfil do participante</p><h1 className="page-title">Escolha seu lado. <span className="text-teal-200">E sustente até o fim.</span></h1><p className="page-intro">A equipe escolhida fica bloqueada para você. Somente a administração poderá alterá-la depois do cadastro.</p>
     <form className="glass-card form-card" onSubmit={event => { event.preventDefault(); if (!form.teamId) return toast.error("Selecione a sua equipe."); completeProfile.mutate({ ...form, avatarUrl: avatar?.url, avatarKey: avatar?.key }); }}>

@@ -1,9 +1,11 @@
 import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { randomUUID } from "node:crypto";
 import {
   answers,
   InsertUser,
   participantProfiles,
+  passwordResetTokens,
   questionOptions,
   questions,
   rounds,
@@ -65,6 +67,58 @@ export async function getUserByOpenId(openId: string) {
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
   return result[0];
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await requireDb();
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result[0];
+}
+
+export async function createPasswordUser(input: { email: string; name: string; passwordHash: string }) {
+  const db = await requireDb();
+  const openId = `local_${randomUUID()}`;
+  const result = await db.insert(users).values({
+    openId,
+    email: input.email,
+    name: input.name,
+    passwordHash: input.passwordHash,
+    loginMethod: "password",
+  });
+  return getUserById(Number(result[0].insertId));
+}
+
+export async function getUserById(userId: number) {
+  const db = await requireDb();
+  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return result[0];
+}
+
+export async function updateLastSignedIn(userId: number) {
+  const db = await requireDb();
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, userId));
+}
+
+export async function updateUserPassword(userId: number, passwordHash: string) {
+  const db = await requireDb();
+  await db.update(users).set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.id, userId));
+}
+
+export async function createPasswordResetToken(input: { userId: number; tokenHash: string; expiresAt: Date }) {
+  const db = await requireDb();
+  await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, input.userId));
+  await db.insert(passwordResetTokens).values(input);
+}
+
+export async function getPasswordResetToken(tokenHash: string) {
+  const db = await requireDb();
+  const result = await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.tokenHash, tokenHash)).limit(1);
+  return result[0];
+}
+
+export async function markPasswordResetTokenUsed(tokenId: number) {
+  const db = await requireDb();
+  await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
 }
 
 const defaultTeams = [

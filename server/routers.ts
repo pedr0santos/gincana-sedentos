@@ -24,6 +24,9 @@ import {
 import { answers, participantProfiles, questionOptions, questions, rounds, roundScores, scoreAdjustments, teams } from "../drizzle/schema";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 import { storagePut } from "./storage";
+import { authenticateWithPassword, publicUser, registerWithPassword, requestPasswordReset, resetPassword } from "./_core/passwordAuth";
+import { ENV } from "./_core/env";
+import { sdk } from "./_core/sdk";
 
 function withProtectedAvatar<T extends { id: number; avatarKey?: string | null; avatarUrl?: string | null }>(profile: T | null | undefined) {
   if (!profile) return profile;
@@ -52,7 +55,35 @@ const roundInput = z.object({
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
+    me: publicProcedure.query(opts => publicUser(opts.ctx.user)),
+    register: publicProcedure
+      .input(z.object({ email: z.string().trim().email().max(320), name: z.string().trim().min(2).max(120), password: z.string().min(8).max(128) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await registerWithPassword(input);
+        const sessionToken = await sdk.createSessionToken(user!.openId, { name: user!.name ?? "", sessionVersion: user!.sessionVersion });
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: 1000 * 60 * 60 * 24 * 30 });
+        return publicUser(user);
+      }),
+    login: publicProcedure
+      .input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(128) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = await authenticateWithPassword(input);
+        const sessionToken = await sdk.createSessionToken(user!.openId, { name: user!.name ?? "", sessionVersion: user!.sessionVersion });
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: 1000 * 60 * 60 * 24 * 30 });
+        return publicUser(user);
+      }),
+    requestPasswordReset: publicProcedure
+      .input(z.object({ email: z.string().trim().email().max(320) }))
+      .mutation(async ({ input }) => {
+        await requestPasswordReset(input.email, ENV.appBaseUrl);
+        return { success: true } as const;
+      }),
+    resetPassword: publicProcedure
+      .input(z.object({ token: z.string().min(32).max(128), password: z.string().min(8).max(128) }))
+      .mutation(async ({ input }) => {
+        await resetPassword(input);
+        return { success: true } as const;
+      }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
