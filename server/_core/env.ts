@@ -10,4 +10,9 @@ export const ENV = {
   appBaseUrl: process.env.APP_BASE_URL ?? "http://localhost:3000",
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
+  s3Bucket: process.env.S3_BUCKET ?? process.env.BUCKET ?? "",
+  s3AccessKeyId: process.env.S3_ACCESS_KEY_ID ?? process.env.ACCESS_KEY_ID ?? "",
+  s3SecretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? process.env.SECRET_ACCESS_KEY ?? "",
+  s3Region: process.env.S3_REGION ?? process.env.REGION ?? "auto",
+  s3Endpoint: process.env.S3_ENDPOINT ?? process.env.ENDPOINT ?? "https://storage.railway.app",
 };
