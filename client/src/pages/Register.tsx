@@ -28,9 +28,9 @@ export default function Register() {
     <p className="auth-copy">Cadastre seu acesso e depois complete seu perfil de participante.</p>
     <form className="mt-6 space-y-4" onSubmit={submit}>
       <label><span className="field-label">Nome</span><input className="dark-input" autoComplete="name" required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /></label>
-      <label><span className="field-label">E-mail</span><input className="dark-input" type="email" autoComplete="email" required value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} /></label>
-      <label><span className="field-label">Senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /></label>
-      <label><span className="field-label">Confirme a senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.confirmation} onChange={event => setForm({ ...form, confirmation: event.target.value })} /></label>
+      <label><span className="mt-3 field-label">E-mail</span><input className="dark-input" type="email" autoComplete="email" required value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} /></label>
+      <label><span className="mt-3 field-label">Senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /></label>
+      <label><span className="mt-4 field-label">Confirme a senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.confirmation} onChange={event => setForm({ ...form, confirmation: event.target.value })} /></label>
       <button className="primary-action mx-auto" disabled={register.isPending} type="submit">{register.isPending ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />} Cadastrar</button>
     </form>
     <p className="mt-6 text-center text-sm text-teal-100">Já possui conta? <Link href="/login">Entrar</Link></p>
