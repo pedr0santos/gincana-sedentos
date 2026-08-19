@@ -22,7 +22,7 @@ export default function Onboarding() {
   const completeProfile = trpc.game.completeProfile.useMutation({ onSuccess: () => { toast.success("Equipe confirmada. Sua jornada começa agora!"); setLocation("/"); } });
   const upload = trpc.game.uploadMedia.useMutation();
   const [form, setForm] = useState({ fullName: "", nickname: "", contact: "", teamId: 0 });
-  const [avatar, setAvatar] = useState<{ url: string; key: string } | null>(null);
+  const [avatar, setAvatar] = useState<{ url: string; key: string; previewUrl: string } | null>(null);
   const [uploading, setUploading] = useState(false);
 
   async function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
@@ -33,7 +33,7 @@ export default function Onboarding() {
       setUploading(true);
       const dataUrl = await readFile(file);
       const result = await upload.mutateAsync({ dataUrl, fileName: file.name, category: "avatar" });
-      setAvatar(result);
+      setAvatar({ ...result, previewUrl: URL.createObjectURL(file) });
       toast.success("Foto carregada com segurança.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a foto.");
@@ -49,7 +49,7 @@ export default function Onboarding() {
         <label><span className="field-label">Nome completo</span><input required className="dark-input" placeholder="Como aparece no evento" value={form.fullName} onChange={event => setForm({ ...form, fullName: event.target.value })} /></label>
         <label><span className="field-label">Apelido</span><input required className="dark-input" placeholder="Como a galera te chama" value={form.nickname} onChange={event => setForm({ ...form, nickname: event.target.value })} /></label>
         <label><span className="field-label">E-mail ou telefone</span><input required className="dark-input" placeholder="seu@email.com ou (00) 00000-0000" value={form.contact} onChange={event => setForm({ ...form, contact: event.target.value })} /></label>
-        <div className="avatar-upload"><img className="avatar-preview" src={avatar?.url || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.nickname || user.name || "S")}&background=174f4d&color=ffffff`} alt="Prévia do perfil" /><label className="cursor-pointer"><span className="field-label mb-1">Foto de perfil opcional</span><span className="text-xs text-teal-100">{uploading ? "Enviando..." : "Selecionar imagem"}</span><input disabled={uploading} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} /></label><ImageUp className="ml-auto text-teal-200" size={19} /></div>
+        <div className="avatar-upload"><img className="avatar-preview" src={avatar?.previewUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.nickname || user.name || "S")}&background=174f4d&color=ffffff`} alt="Prévia do perfil" /><label className="cursor-pointer"><span className="field-label mb-1">Foto de perfil opcional</span><span className="text-xs text-teal-100">{uploading ? "Enviando..." : "Selecionar imagem"}</span><input disabled={uploading} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} /></label><ImageUp className="ml-auto text-teal-200" size={19} /></div>
       </div>
       <div className="mt-7"><span className="field-label">Selecione sua equipe</span><div className="team-picker">{teams.map(team => <button type="button" key={team.id} className={form.teamId === team.id ? "team-choice selected" : "team-choice"} style={{ "--team": team.color } as React.CSSProperties} onClick={() => setForm({ ...form, teamId: team.id })}><div className="team-choice-top"><span className="team-avatar" style={{ background: team.color }}>{team.symbol}</span>{team.name}{form.teamId === team.id && <Check className="ml-auto" size={16} />}</div><p>{team.description}</p></button>)}</div></div>
       <div className="mt-7 flex flex-wrap items-center justify-between gap-3"><p className="max-w-md text-xs leading-5 text-slate-400"><LockKeyhole className="mr-1 inline" size={13} /> A equipe não pode ser trocada livremente após a confirmação.</p><button disabled={completeProfile.isPending || uploading} className="primary-action mt-0" type="submit">{completeProfile.isPending && <Loader2 size={15} className="animate-spin" />} Confirmar equipe</button></div>
