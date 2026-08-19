@@ -26,7 +26,7 @@ export async function registerWithPassword(input: { email: string; name: string;
   if (!email.includes("@")) throw new Error("Informe um e-mail válido.");
   if (name.length < 2 || name.length > 120) throw new Error("Informe um nome válido.");
   validatePassword(input.password);
-  if (await db.getUserByEmail(email)) throw new Error("Não foi possível criar a conta com esses dados.");
+  if (await db.getUserByEmail(email)) throw new Error("Já existe uma conta criada com esse email.");
 
   const passwordHash = await bcrypt.hash(input.password, PASSWORD_ROUNDS);
   return db.createPasswordUser({ email, name, passwordHash });
