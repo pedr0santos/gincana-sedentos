@@ -6,7 +6,6 @@ import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_
 import {
   createParticipantProfile,
   deriveRoundState,
-  ensureDefaultTeams,
   getDb,
   getParticipantHistory,
   getProfileByUserId,
@@ -95,11 +94,9 @@ export const appRouter = router({
     teams: publicProcedure.query(async () => listTeams()),
     myProfile: protectedProcedure.query(async ({ ctx }) => withProtectedAvatar(await getProfileByUserId(ctx.user.id))),
     completeProfile: protectedProcedure.input(profileInput).mutation(async ({ ctx, input }) => {
-      await ensureDefaultTeams();
       return withProtectedAvatar(await createParticipantProfile({ ...input, userId: ctx.user.id }));
     }),
     dashboard: protectedProcedure.query(async ({ ctx }) => {
-      await ensureDefaultTeams();
       await processExpiredRounds();
       const profile = await getProfileByUserId(ctx.user.id);
       const [ranking, featuredRound] = await Promise.all([getRankingData(), getUpcomingRound()]);
@@ -158,7 +155,6 @@ export const appRouter = router({
 
   admin: router({
     overview: adminProcedure.query(async () => {
-      await ensureDefaultTeams();
       await processExpiredRounds();
       const db = await getDb();
       if (!db) throw new Error("Banco indisponível.");

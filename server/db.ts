@@ -121,19 +121,6 @@ export async function markPasswordResetTokenUsed(tokenId: number) {
   await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, tokenId));
 }
 
-const defaultTeams = [
-  { name: "Aurora", slug: "aurora", color: "#16b8b0", accentColor: "#85fff3", symbol: "✦", description: "Energia que desperta a competição." },
-  { name: "Brasa", slug: "brasa", color: "#f26b38", accentColor: "#ffbf81", symbol: "◆", description: "Coragem para incendiar a disputa." },
-  { name: "Pulsar", slug: "pulsar", color: "#6477ff", accentColor: "#c7d1ff", symbol: "◉", description: "Ritmo, precisão e velocidade." },
-  { name: "Vértice", slug: "vertice", color: "#b768e7", accentColor: "#f1c5ff", symbol: "▲", description: "Estratégia para chegar ao topo." },
-];
-
-export async function ensureDefaultTeams() {
-  const db = await requireDb();
-  const existing = await db.select({ id: teams.id }).from(teams).limit(1);
-  if (!existing.length) await db.insert(teams).values(defaultTeams);
-}
-
 export function deriveRoundState(
   round: { startsAt: number; endsAt: number; lifecycle: "draft" | "processing" | "result"; closingWindowSeconds: number },
   now = Date.now()
@@ -258,7 +245,6 @@ export async function createParticipantProfile(input: {
 }
 
 export async function listTeams() {
-  await ensureDefaultTeams();
   const db = await requireDb();
   return db.select().from(teams).orderBy(asc(teams.name));
 }
@@ -306,7 +292,6 @@ export async function processExpiredRounds(now = Date.now()) {
 }
 
 export async function getRankingData() {
-  await ensureDefaultTeams();
   await processExpiredRounds();
   const db = await requireDb();
   const [teamRows, profileRows, scoreRows, adjustmentRows] = await Promise.all([
