@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { Resend } from "resend";
 
 type PasswordResetEmail = { email: string; name: string; resetUrl: string };
 
@@ -9,21 +10,17 @@ export async function sendPasswordResetEmail(input: PasswordResetEmail) {
     return;
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${ENV.resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: ENV.emailFrom,
-      to: [input.email],
-      subject: "Redefinição de senha | Gincana Sedentos",
-      text: `Olá${input.name ? `, ${input.name}` : ""}. Use este link para redefinir sua senha: ${input.resetUrl}`,
-    }),
+  const resend = new Resend(ENV.resendApiKey);
+  const { error } = await resend.emails.send({
+    from: ENV.emailFrom,
+    to: [input.email],
+    subject: "Redefinição de senha | Gincana Sedentos",
+    text: `Olá${input.name ? `, ${input.name}` : ""}. Use este link para redefinir sua senha: ${input.resetUrl}`,
+    html: `<p>Olá${input.name ? `, ${input.name}` : ""}.</p><p>Use este link para redefinir sua senha: <a href="${input.resetUrl}">Redefinir senha</a></p>`,
   });
 
-  if (!response.ok) {
+  if (error) {
+    console.error("[Auth] Resend error:", error.message);
     throw new Error("Não foi possível enviar o e-mail de recuperação.");
   }
 }
