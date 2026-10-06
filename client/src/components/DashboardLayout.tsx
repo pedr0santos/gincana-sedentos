@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { BarChart3, CalendarClock, ChevronLeft, LogOut, RadioTower, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, CalendarClock, ChevronLeft, Home, LogOut, RadioTower, ShieldCheck, UsersRound } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 
@@ -7,6 +7,7 @@ const items = [
   { path: "/admin", label: "Visão geral", icon: BarChart3 },
   { path: "/admin?tab=rodadas", label: "Rodadas", icon: CalendarClock },
   { path: "/admin?tab=participantes", label: "Participantes", icon: UsersRound },
+  { path: "/", label: "Voltar ao participante", icon: Home },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="admin-nav">
           {items.map(item => {
             const Icon = item.icon;
-            const active = item.path === "/admin" ? location === "/admin" : location.startsWith("/admin");
+            const active = item.path === "/admin" ? location === "/admin" : item.path.startsWith("/admin") ? location.startsWith("/admin") : location === item.path;
             return <button key={item.label} onClick={() => setLocation(item.path)} className={active ? "admin-nav-item active" : "admin-nav-item"}><Icon size={18} />{item.label}</button>;
           })}
         </nav>
