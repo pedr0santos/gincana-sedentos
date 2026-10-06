@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { Loader2, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Link, useLocation } from "wouter";
@@ -8,6 +8,8 @@ export default function Register() {
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirmation: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const register = trpc.auth.register.useMutation({
     onSuccess: async () => {
       await utils.auth.me.invalidate();
@@ -29,8 +31,8 @@ export default function Register() {
     <form className="mt-6 space-y-4" onSubmit={submit}>
       <label><span className="field-label">Nome</span><input className="dark-input" autoComplete="name" required value={form.name} onChange={event => setForm({ ...form, name: event.target.value })} /></label>
       <label><span className="mt-3 field-label">E-mail</span><input className="dark-input" type="email" autoComplete="email" required value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} /></label>
-      <label><span className="mt-3 field-label">Senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /></label>
-      <label><span className="mt-4 field-label">Confirme a senha</span><input className="dark-input" type="password" autoComplete="new-password" minLength={8} required value={form.confirmation} onChange={event => setForm({ ...form, confirmation: event.target.value })} /></label>
+      <label><span className="mt-3 field-label">Senha</span><div className="relative"><input className="dark-input pr-10" type={showPassword ? "text" : "password"} autoComplete="new-password" minLength={8} required value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} /><button className="absolute right-2 top-1/2 -translate-y-1/2 text-teal-100" type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} title={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword(value => !value)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
+      <label><span className="mt-4 field-label">Confirme a senha</span><div className="relative"><input className="dark-input pr-10" type={showConfirmation ? "text" : "password"} autoComplete="new-password" minLength={8} required value={form.confirmation} onChange={event => setForm({ ...form, confirmation: event.target.value })} /><button className="absolute right-2 top-1/2 -translate-y-1/2 text-teal-100" type="button" aria-label={showConfirmation ? "Ocultar confirmação da senha" : "Mostrar confirmação da senha"} title={showConfirmation ? "Ocultar confirmação da senha" : "Mostrar confirmação da senha"} onClick={() => setShowConfirmation(value => !value)}>{showConfirmation ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
       <button className="primary-action mx-auto" disabled={register.isPending} type="submit">{register.isPending ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />} Cadastrar</button>
     </form>
     <p className="mt-6 text-center text-sm text-teal-100">Já possui conta? <Link href="/login">Entrar</Link></p>

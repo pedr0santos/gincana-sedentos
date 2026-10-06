@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   fromDateTimeInput,
   formatDateTime,
@@ -1008,58 +1009,82 @@ function AdminContent() {
                       </td>
                       <td>
                         <div className="flex gap-1">
-                          <button
-                            className="small-button"
-                            onClick={() => setEditParticipantId(person.id)}
-                          >
-                            <Edit3 size={13} />
-                          </button>
-                          <button
-                            className="small-button"
-                            onClick={() => {
-                              const points = Number(
-                                window.prompt(
-                                  "Ajuste de pontos (positivo ou negativo):",
-                                  "0"
-                                )
-                              );
-                              const reason = window.prompt("Motivo do ajuste:");
-                              if (points && reason)
-                                adjustScore.mutate({
-                                  participantId: person.id,
-                                  points,
-                                  reason,
-                                });
-                            }}
-                          >
-                            <Medal size={13} />
-                          </button>
-                          <button
-                            className="small-button"
-                            onClick={() =>
-                              blockParticipant.mutate({
-                                participantId: person.id,
-                                isBlocked: !person.isBlocked,
-                              })
-                            }
-                          >
-                            <Ban size={13} />
-                          </button>
-                          <button
-                            className="small-button danger"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  "Excluir participante e dados associados?"
-                                )
-                              )
-                                deleteParticipant.mutate({
-                                  participantId: person.id,
-                                });
-                            }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="small-button"
+                                aria-label="Editar participante"
+                                onClick={() => setEditParticipantId(person.id)}
+                              >
+                                <Edit3 size={13} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Editar participante</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="small-button"
+                                aria-label="Ajustar pontuação"
+                                onClick={() => {
+                                  const points = Number(
+                                    window.prompt(
+                                      "Ajuste de pontos (positivo ou negativo):",
+                                      "0"
+                                    )
+                                  );
+                                  const reason = window.prompt("Motivo do ajuste:");
+                                  if (points && reason)
+                                    adjustScore.mutate({
+                                      participantId: person.id,
+                                      points,
+                                      reason,
+                                    });
+                                }}
+                              >
+                                <Medal size={13} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ajustar pontuação</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="small-button"
+                                aria-label={person.isBlocked ? "Desbloquear participante" : "Bloquear participante"}
+                                onClick={() =>
+                                  blockParticipant.mutate({
+                                    participantId: person.id,
+                                    isBlocked: !person.isBlocked,
+                                  })
+                                }
+                              >
+                                <Ban size={13} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>{person.isBlocked ? "Desbloquear participante" : "Bloquear participante"}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="small-button danger"
+                                aria-label="Excluir participante"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      "Excluir participante e dados associados?"
+                                    )
+                                  )
+                                    deleteParticipant.mutate({
+                                      participantId: person.id,
+                                    });
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>Excluir participante</TooltipContent>
+                          </Tooltip>
                         </div>
                       </td>
                     </tr>
