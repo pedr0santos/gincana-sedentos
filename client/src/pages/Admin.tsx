@@ -20,6 +20,8 @@ import {
   Medal,
   Plus,
   Save,
+  Search,
+  ShieldCheck,
   Trash2,
   UsersRound,
   X,
@@ -28,7 +30,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useSearch } from "wouter";
 
-type Tab = "overview" | "rodadas" | "participantes" | "equipes";
+type Tab = "overview" | "rodadas" | "participantes" | "equipes" | "usuarios";
 type EditableRound = {
   id?: number;
   title: string;
@@ -69,14 +71,20 @@ function readFile(file: File) {
   });
 }
 
+function formatUserDate(value: Date | null) {
+  return value
+    ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(value)
+    : "Nunca";
+}
+
 function AdminContent() {
   const { user, loading, logout } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
   const queryTab = new URLSearchParams(search).get("tab") as Tab | null;
   const activeTab: Tab =
-    queryTab &&
-    ["overview", "rodadas", "participantes", "equipes"].includes(queryTab)
+          queryTab &&
+          ["overview", "rodadas", "participantes", "equipes", "usuarios"].includes(queryTab)
       ? queryTab
       : "overview";
   const utils = trpc.useUtils();
@@ -93,6 +101,8 @@ function AdminContent() {
     null
   );
   const [creatingTeam, setCreatingTeam] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "user" | "admin">("all");
   const overview = trpc.admin.overview.useQuery(undefined, {
     enabled: user?.role === "admin",
     refetchInterval: 10_000,
@@ -108,6 +118,14 @@ function AdminContent() {
   });
   const teams = trpc.game.teams.useQuery(undefined, {
     enabled: user?.role === "admin",
+    refetchOnMount: "always",
+  });
+  const adminUsers = trpc.admin.users.useQuery(
+    { search: userSearch || undefined, role: userRoleFilter },
+    { enabled: user?.role === "admin", refetchOnMount: "always" }
+  );
+  const roleChanges = trpc.admin.roleChanges.useQuery(undefined, {
+    enabled: user?.role === "admin" && tab === "usuarios",
     refetchOnMount: "always",
   });
   const saveRound = trpc.admin.createOrUpdateRound.useMutation({
@@ -211,6 +229,15 @@ function AdminContent() {
     onError: error => toast.error(error.message),
   });
   const uploadMedia = trpc.game.uploadMedia.useMutation();
+  const updateUserRole = trpc.admin.updateUserRole.useMutation({
+    onSuccess: () => {
+      utils.admin.users.invalidate();
+      utils.admin.roleChanges.invalidate();
+      utils.admin.overview.invalidate();
+      toast.success("Permissão do usuário atualizada.");
+    },
+    onError: error => toast.error(error.message),
+  });
 
   useEffect(() => {
     setTab(activeTab);
@@ -365,7 +392,7 @@ function AdminContent() {
           servidor.
         </p>
         <div className="admin-tabs">
-          {(["overview", "rodadas", "participantes", "equipes"] as Tab[]).map(
+          {(["overview", "rodadas", "participantes", "equipes", "usuarios"] as Tab[]).map(
             item => (
               <button
                 type="button"
@@ -384,6 +411,7 @@ function AdminContent() {
                       rodadas: "Rodadas e perguntas",
                       participantes: "Participantes",
                       equipes: "Equipes",
+                      usuarios: "Usuários",
                     } as Record<Tab, string>
                   )[item]
                 }
@@ -1092,6 +1120,130 @@ function AdminContent() {
                 </tbody>
               </table>
             </div>
+          </section>
+        )}
+        {tab === "usuarios" && (
+          <section className="space-y-5">
+            <article className="glass-card p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="text-teal-200" size={18} />
+                    <h2 className="font-display text-xl font-bold">Usuários e permissões</h2>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-400">
+                    Promova usuários confiáveis e acompanhe todas as alterações de acesso administrativo.
+                  </p>
+                </div>
+                <span className="status-pill live">{adminUsers.data?.filter(item => item.role === "admin").length ?? 0} admins</span>
+              </div>
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <label className="relative min-w-0 flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input
+                    className="dark-input pl-10"
+                    value={userSearch}
+                    onChange={event => setUserSearch(event.target.value)}
+                    placeholder="Buscar por nome, e-mail ou apelido"
+                  />
+                </label>
+                <select
+                  className="dark-input sm:max-w-48"
+                  value={userRoleFilter}
+                  onChange={event => setUserRoleFilter(event.target.value as typeof userRoleFilter)}
+                >
+                  <option value="all">Todos os papéis</option>
+                  <option value="admin">Somente admins</option>
+                  <option value="user">Somente usuários</option>
+                </select>
+              </div>
+            </article>
+            <div className="admin-table-wrap">
+              <table className="admin-table min-w-[900px]">
+                <thead>
+                  <tr>
+                    <th>Usuário</th>
+                    <th>Perfil</th>
+                    <th>Equipe</th>
+                    <th>Papel</th>
+                    <th>Último acesso</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminUsers.data?.map(account => {
+                    const isCurrentUser = account.id === user?.id;
+                    const nextRole = account.role === "admin" ? "user" : "admin";
+                    return (
+                      <tr key={account.id}>
+                        <td>
+                          <p className="font-bold">{account.name || account.email || "Usuário sem nome"}</p>
+                          <p className="mt-1 text-[11px] text-slate-400">{account.email || "Sem e-mail"}</p>
+                        </td>
+                        <td>
+                          {account.nickname ? (
+                            <>
+                              <p>{account.nickname}</p>
+                              <p className="mt-1 text-[11px] text-slate-400">{account.contact}</p>
+                            </>
+                          ) : <span className="text-slate-500">Ainda não preenchido</span>}
+                        </td>
+                        <td>
+                          {account.teamName ? (
+                            <span className="rounded-full px-2 py-1 text-[10px] font-bold" style={{ color: account.teamColor ?? undefined, background: account.teamColor ? `${account.teamColor}18` : undefined }}>
+                              {account.teamName}
+                            </span>
+                          ) : <span className="text-slate-500">Sem equipe</span>}
+                        </td>
+                        <td>
+                          <span className={account.role === "admin" ? "status-pill live" : "status-pill muted"}>
+                            {account.role === "admin" ? "Admin" : "Usuário"}
+                          </span>
+                        </td>
+                        <td className="font-mono text-[11px]">{formatUserDate(account.lastSignedIn)}</td>
+                        <td>
+                          <button
+                            className={account.role === "admin" ? "small-button danger" : "small-button"}
+                            disabled={isCurrentUser && account.role === "admin" || updateUserRole.isPending}
+                            title={isCurrentUser && account.role === "admin" ? "Você não pode remover o próprio acesso" : undefined}
+                            onClick={() => {
+                              const action = nextRole === "admin" ? "promover" : "rebaixar";
+                              if (window.confirm(`Deseja ${action} ${account.name || account.email || "este usuário"} para ${nextRole === "admin" ? "administrador" : "usuário comum"}?`)) {
+                                updateUserRole.mutate({ userId: account.id, role: nextRole });
+                              }
+                            }}
+                          >
+                            <ShieldCheck size={13} /> {nextRole === "admin" ? "Promover" : "Rebaixar"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {!adminUsers.isLoading && !adminUsers.data?.length && (
+                <div className="empty-panel">Nenhum usuário encontrado para os filtros atuais.</div>
+              )}
+            </div>
+            <article className="glass-card p-5">
+              <div className="flex items-center gap-2">
+                <Activity className="text-orange-200" size={17} />
+                <h2 className="font-display text-lg font-bold">Histórico de permissões</h2>
+              </div>
+              <div className="mt-4 space-y-3">
+                {roleChanges.data?.map(change => (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3 text-xs last:border-0 last:pb-0" key={change.id}>
+                    <p>
+                      <strong>{change.actorUser?.name || change.actorUser?.email || "Admin"}</strong>{" "}
+                      {change.nextRole === "admin" ? "promoveu" : "rebaixou"}{" "}
+                      <strong>{change.targetUser?.name || change.targetUser?.email || "usuário"}</strong>
+                    </p>
+                    <span className="font-mono text-[10px] text-slate-400">{formatUserDate(change.createdAt)}</span>
+                  </div>
+                ))}
+                {!roleChanges.isLoading && !roleChanges.data?.length && <p className="text-xs text-slate-500">Nenhuma alteração registrada.</p>}
+              </div>
+            </article>
           </section>
         )}
         {tab === "equipes" && (

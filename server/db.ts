@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
   answers,
+  adminRoleChanges,
   InsertUser,
   participantProfiles,
   passwordResetTokens,
@@ -97,6 +98,85 @@ export async function getUserById(userId: number) {
 export async function updateLastSignedIn(userId: number) {
   const db = await requireDb();
   await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, userId));
+}
+
+export async function listAdminUsers(input: { search?: string; role?: "all" | "user" | "admin" }) {
+  const db = await requireDb();
+  const search = input.search?.trim();
+  const conditions = [];
+  if (input.role && input.role !== "all") conditions.push(eq(users.role, input.role));
+  if (search) {
+    const pattern = `%${search}%`;
+    conditions.push(or(like(users.name, pattern), like(users.email, pattern), like(participantProfiles.nickname, pattern)));
+  }
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+      lastSignedIn: users.lastSignedIn,
+      fullName: participantProfiles.fullName,
+      nickname: participantProfiles.nickname,
+      contact: participantProfiles.contact,
+      isBlocked: participantProfiles.isBlocked,
+      teamName: teams.name,
+      teamColor: teams.color,
+    })
+    .from(users)
+    .leftJoin(participantProfiles, eq(participantProfiles.userId, users.id))
+    .leftJoin(teams, eq(participantProfiles.teamId, teams.id))
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(asc(users.name), asc(users.email));
+}
+
+export async function listAdminRoleChanges() {
+  const db = await requireDb();
+  const changes = await db.select().from(adminRoleChanges).orderBy(desc(adminRoleChanges.createdAt)).limit(100);
+  const userIds = Array.from(new Set(changes.flatMap(change => [change.targetUserId, change.actorUserId])));
+  if (!userIds.length) return [];
+  const usersById = new Map(
+    (await db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, userIds))).map(user => [user.id, user])
+  );
+  return changes.map(change => ({
+    ...change,
+    targetUser: usersById.get(change.targetUserId) ?? null,
+    actorUser: usersById.get(change.actorUserId) ?? null,
+  }));
+}
+
+export async function updateAdminUserRole(
+  input: { actorUserId: number; targetUserId: number; role: "user" | "admin"; ownerOpenId: string },
+  database?: Awaited<ReturnType<typeof requireDb>>
+) {
+  const db = database ?? (await requireDb());
+  return db.transaction(async tx => {
+    const target = await tx
+      .select({ id: users.id, openId: users.openId, role: users.role })
+      .from(users)
+      .where(eq(users.id, input.targetUserId))
+      .limit(1);
+    if (!target[0]) throw new Error("Usuário não encontrado.");
+    if (target[0].role === input.role) return { changed: false as const, role: target[0].role };
+    if (input.role === "user" && target[0].openId === input.ownerOpenId) throw new Error("O administrador principal não pode ser rebaixado.");
+    if (input.role === "user" && target[0].id === input.actorUserId) throw new Error("Você não pode remover o próprio acesso administrativo.");
+    if (input.role === "user") {
+      const admins = await tx.select({ id: users.id }).from(users).where(eq(users.role, "admin"));
+      if (admins.length <= 1) throw new Error("O sistema precisa manter pelo menos um administrador.");
+    }
+    await tx
+      .update(users)
+      .set({ role: input.role, ...(input.role === "user" ? { sessionVersion: sql`${users.sessionVersion} + 1` } : {}) })
+      .where(eq(users.id, input.targetUserId));
+    await tx.insert(adminRoleChanges).values({
+      targetUserId: input.targetUserId,
+      actorUserId: input.actorUserId,
+      previousRole: target[0].role,
+      nextRole: input.role,
+    });
+    return { changed: true as const, role: input.role };
+  });
 }
 
 export async function updateUserPassword(userId: number, passwordHash: string) {

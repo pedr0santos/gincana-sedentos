@@ -7,6 +7,8 @@ import {
   createParticipantProfile,
   deriveRoundState,
   getDb,
+  listAdminRoleChanges,
+  listAdminUsers,
   getParticipantHistory,
   getProfileByUserId,
   getRankingData,
@@ -19,6 +21,7 @@ import {
   listTeams,
   processExpiredRounds,
   submitParticipantAnswer,
+  updateAdminUserRole,
 } from "./db";
 import { answers, participantProfiles, questionOptions, questions, rounds, roundScores, scoreAdjustments, teams } from "../drizzle/schema";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
@@ -154,6 +157,13 @@ export const appRouter = router({
   }),
 
   admin: router({
+    users: adminProcedure
+      .input(z.object({ search: z.string().trim().max(120).optional(), role: z.enum(["all", "user", "admin"]).default("all") }).optional())
+      .query(async ({ input }) => listAdminUsers(input ?? { role: "all" })),
+    roleChanges: adminProcedure.query(async () => listAdminRoleChanges()),
+    updateUserRole: adminProcedure
+      .input(z.object({ userId: z.number().int().positive(), role: z.enum(["user", "admin"]) }))
+      .mutation(async ({ ctx, input }) => updateAdminUserRole({ actorUserId: ctx.user.id, targetUserId: input.userId, role: input.role, ownerOpenId: ENV.ownerOpenId })),
     overview: adminProcedure.query(async () => {
       await processExpiredRounds();
       const db = await getDb();

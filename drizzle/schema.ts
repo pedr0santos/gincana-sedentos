@@ -40,6 +40,27 @@ export const passwordResetTokens = mysqlTable(
   table => [index("password_reset_tokens_user_idx").on(table.userId)]
 );
 
+export const adminRoleChanges = mysqlTable(
+  "admin_role_changes",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    targetUserId: int("targetUserId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorUserId: int("actorUserId")
+      .notNull()
+      .references(() => users.id, { onDelete: "restrict" }),
+    previousRole: mysqlEnum("previousRole", ["user", "admin"]).notNull(),
+    nextRole: mysqlEnum("nextRole", ["user", "admin"]).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    index("admin_role_changes_target_idx").on(table.targetUserId),
+    index("admin_role_changes_actor_idx").on(table.actorUserId),
+    index("admin_role_changes_created_idx").on(table.createdAt),
+  ]
+);
+
 export const teams = mysqlTable(
   "teams",
   {
@@ -210,6 +231,7 @@ export const scoreAdjustments = mysqlTable(
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type AdminRoleChange = typeof adminRoleChanges.$inferSelect;
 export type Team = typeof teams.$inferSelect;
 export type ParticipantProfile = typeof participantProfiles.$inferSelect;
 export type GameRound = typeof rounds.$inferSelect;

@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { BarChart3, CalendarClock, ChevronLeft, Home, LogOut, RadioTower, ShieldCheck, UsersRound } from "lucide-react";
+import { BarChart3, CalendarClock, ChevronLeft, Home, LogOut, ShieldCheck, UserCog, UsersRound } from "lucide-react";
 import { useLocation } from "wouter";
 import { Button } from "./ui/button";
 
@@ -7,6 +7,7 @@ const items = [
   { path: "/admin", label: "Visão geral", icon: BarChart3 },
   { path: "/admin?tab=rodadas", label: "Rodadas", icon: CalendarClock },
   { path: "/admin?tab=participantes", label: "Participantes", icon: UsersRound },
+  { path: "/admin?tab=usuarios", label: "Usuários", icon: UserCog },
   { path: "/", label: "Voltar ao participante", icon: Home },
 ];
 
