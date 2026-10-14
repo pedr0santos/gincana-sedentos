@@ -10,6 +10,7 @@ import {
   questionOptions,
   questions,
   rounds,
+  roundQuestionAttempts,
   roundScores,
   scoreAdjustments,
   teams,
@@ -221,14 +222,25 @@ export function canAcceptRoundAnswers(
   return state === "LIBERADA" || state === "ENCERRANDO";
 }
 
-export function summarizeSubmittedAnswers(rows: Array<{ participantId: number; isCorrect: boolean; points: number }>) {
-  const totals = new Map<number, { answeredCount: number; correctCount: number; points: number }>();
+export function calculateQuestionScore(points: number, responseTimeMs: number, timeLimitSeconds: number) {
+  if (points <= 0 || timeLimitSeconds <= 0) return 0;
+  const ratio = Math.max(0, Math.min(1, responseTimeMs / (timeLimitSeconds * 1000)));
+  return Math.max(0, Math.floor(points * (1 - ratio)));
+}
+
+export function getQuestionDeadline(startedAt: number, timeLimitSeconds: number, roundEndsAt: number) {
+  return Math.min(startedAt + Math.max(1, timeLimitSeconds) * 1000, roundEndsAt);
+}
+
+export function summarizeSubmittedAnswers(rows: Array<{ participantId: number; isCorrect: boolean; points: number; responseTimeMs?: number | null }>) {
+  const totals = new Map<number, { answeredCount: number; correctCount: number; points: number; correctResponseTimeMs: number }>();
   rows.forEach(answer => {
-    const current = totals.get(answer.participantId) ?? { answeredCount: 0, correctCount: 0, points: 0 };
+    const current = totals.get(answer.participantId) ?? { answeredCount: 0, correctCount: 0, points: 0, correctResponseTimeMs: 0 };
     current.answeredCount += 1;
     if (answer.isCorrect) {
       current.correctCount += 1;
       current.points += answer.points;
+      current.correctResponseTimeMs += answer.responseTimeMs ?? 0;
     }
     totals.set(answer.participantId, current);
   });
@@ -251,23 +263,36 @@ export function canSubmitParticipantAnswer(input: {
 export function buildRankings(
   teamRows: Array<{ id: number; name: string; color: string; accentColor: string; symbol: string; slug: string; description: string | null; logoUrl: string | null; logoKey: string | null; createdAt: Date; updatedAt: Date }>,
   profileRows: Array<{ id: number; teamId: number; nickname: string; fullName: string; avatarUrl: string | null; isBlocked: boolean }>,
-  scoreRows: Array<{ participantId: number; points: number }>,
+  scoreRows: Array<{ participantId: number; points: number; correctResponseTimeMs?: number }>,
   adjustmentRows: Array<{ participantId: number; points: number }>
 ) {
-  const totalsByParticipant = new Map<number, number>();
-  scoreRows.forEach(score => totalsByParticipant.set(score.participantId, (totalsByParticipant.get(score.participantId) ?? 0) + score.points));
-  adjustmentRows.forEach(adjustment => totalsByParticipant.set(adjustment.participantId, (totalsByParticipant.get(adjustment.participantId) ?? 0) + adjustment.points));
+  const totalsByParticipant = new Map<number, { points: number; correctResponseTimeMs: number }>();
+  scoreRows.forEach(score => {
+    const current = totalsByParticipant.get(score.participantId) ?? { points: 0, correctResponseTimeMs: 0 };
+    current.points += score.points;
+    current.correctResponseTimeMs += score.correctResponseTimeMs ?? 0;
+    totalsByParticipant.set(score.participantId, current);
+  });
+  adjustmentRows.forEach(adjustment => {
+    const current = totalsByParticipant.get(adjustment.participantId) ?? { points: 0, correctResponseTimeMs: 0 };
+    current.points += adjustment.points;
+    totalsByParticipant.set(adjustment.participantId, current);
+  });
   const participants = profileRows
-    .map(profile => ({ participantId: profile.id, teamId: profile.teamId, nickname: profile.nickname, fullName: profile.fullName, avatarUrl: profile.avatarUrl, isBlocked: profile.isBlocked, points: totalsByParticipant.get(profile.id) ?? 0 }))
-    .sort((a, b) => b.points - a.points || a.nickname.localeCompare(b.nickname))
+    .map(profile => {
+      const total = totalsByParticipant.get(profile.id) ?? { points: 0, correctResponseTimeMs: 0 };
+      return { participantId: profile.id, teamId: profile.teamId, nickname: profile.nickname, fullName: profile.fullName, avatarUrl: profile.avatarUrl, isBlocked: profile.isBlocked, points: total.points, correctResponseTimeMs: total.correctResponseTimeMs };
+    })
+    .sort((a, b) => b.points - a.points || a.correctResponseTimeMs - b.correctResponseTimeMs || a.nickname.localeCompare(b.nickname))
     .map((participant, index) => ({ ...participant, rank: index + 1 }));
   const teams = teamRows
     .map(team => {
       const members = participants.filter(participant => participant.teamId === team.id);
       const points = members.reduce((total, participant) => total + participant.points, 0);
-      return { ...team, points, memberCount: members.length, averagePoints: members.length ? Math.round(points / members.length) : 0, members };
+      const correctResponseTimeMs = members.reduce((total, participant) => total + participant.correctResponseTimeMs, 0);
+      return { ...team, points, correctResponseTimeMs, memberCount: members.length, averagePoints: members.length ? Math.round(points / members.length) : 0, members };
     })
-    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
+    .sort((a, b) => b.points - a.points || a.correctResponseTimeMs - b.correctResponseTimeMs || a.name.localeCompare(b.name))
     .map((team, index) => ({ ...team, rank: index + 1 }));
   return { teams, participants };
 }
@@ -343,13 +368,24 @@ export async function processExpiredRounds(now = Date.now()) {
         participantId: answers.participantId,
         isCorrect: questionOptions.isCorrect,
         points: questions.points,
+        responseTimeMs: roundQuestionAttempts.responseTimeMs,
       })
       .from(answers)
       .innerJoin(questionOptions, eq(answers.selectedOptionId, questionOptions.id))
       .innerJoin(questions, eq(answers.questionId, questions.id))
+      .leftJoin(roundQuestionAttempts, and(
+        eq(roundQuestionAttempts.roundId, round.id),
+        eq(roundQuestionAttempts.participantId, answers.participantId),
+        eq(roundQuestionAttempts.questionId, answers.questionId)
+      ))
       .where(eq(questions.roundId, round.id));
 
-    const totals = summarizeSubmittedAnswers(submitted);
+    const totals = summarizeSubmittedAnswers(submitted.map(answer => ({
+      ...answer,
+      points: answer.responseTimeMs === null
+        ? answer.points
+        : calculateQuestionScore(answer.points, answer.responseTimeMs ?? 0, round.questionTimeLimitSeconds),
+    })));
 
     const scoreRows = Array.from(totals.entries()).map(([participantId, score]) => ({
       roundId: round.id,
@@ -363,6 +399,7 @@ export async function processExpiredRounds(now = Date.now()) {
           answeredCount: sql`VALUES(${roundScores.answeredCount})`,
           correctCount: sql`VALUES(${roundScores.correctCount})`,
           points: sql`VALUES(${roundScores.points})`,
+          correctResponseTimeMs: sql`VALUES(${roundScores.correctResponseTimeMs})`,
           processedAt: new Date(),
         },
       });
@@ -484,6 +521,98 @@ export async function getRoundById(roundId: number) {
   return row[0];
 }
 
+async function getParticipantAttemptRows(participantId: number, roundId: number) {
+  const db = await requireDb();
+  return db
+    .select()
+    .from(roundQuestionAttempts)
+    .where(and(eq(roundQuestionAttempts.participantId, participantId), eq(roundQuestionAttempts.roundId, roundId)));
+}
+
+export async function getParticipantRoundProgress(participantId: number, roundId: number, now = Date.now()) {
+  const db = await requireDb();
+  const questionRows = await db
+    .select({ id: questions.id, position: questions.position })
+    .from(questions)
+    .where(eq(questions.roundId, roundId))
+    .orderBy(asc(questions.position));
+  let attemptRows = await getParticipantAttemptRows(participantId, roundId);
+  const activeAttempt = attemptRows.find(attempt => attempt.status === "active");
+  if (activeAttempt && now >= activeAttempt.deadlineAt) {
+    await db
+      .update(roundQuestionAttempts)
+      .set({ status: "expired", completedAt: activeAttempt.deadlineAt, responseTimeMs: null })
+      .where(and(eq(roundQuestionAttempts.id, activeAttempt.id), eq(roundQuestionAttempts.status, "active")));
+    attemptRows = await getParticipantAttemptRows(participantId, roundId);
+  }
+  const currentAttempt = attemptRows.find(attempt => attempt.status === "active") ?? null;
+  const attemptMap = Object.fromEntries(attemptRows.map(attempt => [attempt.questionId, {
+    status: attempt.status,
+    startedAt: attempt.startedAt,
+    deadlineAt: attempt.deadlineAt,
+    completedAt: attempt.completedAt,
+    responseTimeMs: attempt.responseTimeMs,
+  }]));
+  const nextQuestion = questionRows.find(question => !attemptMap[question.id]);
+  return {
+    activeQuestionId: currentAttempt?.questionId ?? nextQuestion?.id ?? null,
+    activeAttempt: currentAttempt,
+    completed: !currentAttempt && !nextQuestion,
+    attempts: attemptMap,
+  };
+}
+
+export async function startParticipantQuestion(input: { userId: number; roundId: number }) {
+  await processExpiredRounds();
+  const db = await requireDb();
+  const profile = await getProfileByUserId(input.userId);
+  const round = await getRoundById(input.roundId);
+  if (!profile) throw new Error("Conclua seu cadastro antes de responder.");
+  if (!round || !canAcceptRoundAnswers(round)) throw new Error("Esta rodada não está disponível para respostas.");
+  if (profile.isBlocked) throw new Error("Sua participação está bloqueada. Procure a administração.");
+
+  const questionSet = await getRoundQuestionSet(round.id);
+  const progress = await getParticipantRoundProgress(profile.id, round.id);
+  if (progress.activeAttempt) return { completed: false, attempt: progress.activeAttempt };
+  const nextQuestion = questionSet.find(question => !progress.attempts[question.id]);
+  if (!nextQuestion) return { completed: true, attempt: null };
+
+  const startedAt = Date.now();
+  const deadlineAt = getQuestionDeadline(startedAt, round.questionTimeLimitSeconds, round.endsAt);
+  try {
+    await db.insert(roundQuestionAttempts).values({
+      roundId: round.id,
+      participantId: profile.id,
+      questionId: nextQuestion.id,
+      status: "active",
+      startedAt,
+      deadlineAt,
+    });
+  } catch {
+    const existing = await db
+      .select()
+      .from(roundQuestionAttempts)
+      .where(and(
+        eq(roundQuestionAttempts.roundId, round.id),
+        eq(roundQuestionAttempts.participantId, profile.id),
+        eq(roundQuestionAttempts.questionId, nextQuestion.id)
+      ))
+      .limit(1);
+    if (!existing[0]) throw new Error("Não foi possível iniciar a pergunta.");
+    return { completed: false, attempt: existing[0] };
+  }
+  const attempt = await db
+    .select()
+    .from(roundQuestionAttempts)
+    .where(and(
+      eq(roundQuestionAttempts.roundId, round.id),
+      eq(roundQuestionAttempts.participantId, profile.id),
+      eq(roundQuestionAttempts.questionId, nextQuestion.id)
+    ))
+    .limit(1);
+  return { completed: false, attempt: attempt[0] ?? null };
+}
+
 export async function getUpcomingRound() {
   const db = await requireDb();
   const all = await db.select().from(rounds).orderBy(asc(rounds.startsAt));
@@ -500,7 +629,7 @@ export async function submitParticipantAnswer(input: { userId: number; questionI
   const profile = await getProfileByUserId(input.userId);
   if (!profile) throw new Error("Conclua seu cadastro antes de responder.");
   const question = await db
-    .select({ questionId: questions.id, roundId: rounds.id, startsAt: rounds.startsAt, endsAt: rounds.endsAt, lifecycle: rounds.lifecycle, closingWindowSeconds: rounds.closingWindowSeconds })
+    .select({ questionId: questions.id, roundId: rounds.id, startsAt: rounds.startsAt, endsAt: rounds.endsAt, lifecycle: rounds.lifecycle, closingWindowSeconds: rounds.closingWindowSeconds, questionTimeLimitSeconds: rounds.questionTimeLimitSeconds })
     .from(questions)
     .innerJoin(rounds, eq(questions.roundId, rounds.id))
     .where(eq(questions.id, input.questionId))
@@ -516,15 +645,33 @@ export async function submitParticipantAnswer(input: { userId: number; questionI
     if (profile.isBlocked) throw new Error("Sua participação está bloqueada. Procure a administração.");
     throw new Error("Esta resposta já foi enviada e não pode ser alterada.");
   }
+  const progress = await getParticipantRoundProgress(profile.id, item.roundId);
+  if (progress.activeQuestionId !== input.questionId || !progress.activeAttempt || progress.activeAttempt.questionId !== input.questionId) {
+    throw new Error("Responda a pergunta atual antes de avançar.");
+  }
+  const now = Date.now();
+  if (now >= progress.activeAttempt.deadlineAt) {
+    await db.update(roundQuestionAttempts).set({ status: "expired", completedAt: progress.activeAttempt.deadlineAt, responseTimeMs: null }).where(and(eq(roundQuestionAttempts.id, progress.activeAttempt.id), eq(roundQuestionAttempts.status, "active")));
+    throw new Error("O tempo desta pergunta acabou.");
+  }
   const option = await db
     .select({ id: questionOptions.id })
     .from(questionOptions)
     .where(and(eq(questionOptions.id, input.selectedOptionId), eq(questionOptions.questionId, input.questionId)))
     .limit(1);
   if (!option[0]) throw new Error("Alternativa inválida.");
+  const responseTimeMs = Math.max(0, now - progress.activeAttempt.startedAt);
   try {
-    await db.insert(answers).values({ participantId: profile.id, questionId: input.questionId, selectedOptionId: input.selectedOptionId });
-  } catch {
+    await db.transaction(async tx => {
+      const updated = await tx
+        .update(roundQuestionAttempts)
+        .set({ status: "answered", completedAt: now, responseTimeMs })
+        .where(and(eq(roundQuestionAttempts.id, progress.activeAttempt!.id), eq(roundQuestionAttempts.status, "active")));
+      if (!updated[0]?.affectedRows) throw new Error("O tempo desta pergunta acabou.");
+      await tx.insert(answers).values({ participantId: profile.id, questionId: input.questionId, selectedOptionId: input.selectedOptionId });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "O tempo desta pergunta acabou.") throw error;
     throw new Error("Esta resposta já foi enviada e não pode ser alterada.");
   }
   return { success: true };

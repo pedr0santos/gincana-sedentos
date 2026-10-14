@@ -6,6 +6,7 @@ vi.mock("./db", () => ({
   deriveRoundState: vi.fn(),
   ensureDefaultTeams: vi.fn(),
   getDb: vi.fn(),
+  getParticipantRoundProgress: vi.fn(),
   getParticipantHistory: vi.fn(),
   getProfileByUserId: vi.fn(),
   getRankingData: vi.fn(),
@@ -16,12 +17,13 @@ vi.mock("./db", () => ({
   getUpcomingRound: vi.fn(),
   listTeams: vi.fn(),
   processExpiredRounds: vi.fn(),
+  startParticipantQuestion: vi.fn(),
   submitParticipantAnswer: vi.fn(),
 }));
 
 vi.mock("./storage", () => ({ storagePut: vi.fn() }));
 
-import { submitParticipantAnswer } from "./db";
+import { startParticipantQuestion, submitParticipantAnswer } from "./db";
 import { appRouter } from "./routers";
 
 function participantContext(): TrpcContext {
@@ -56,6 +58,14 @@ describe("procedures protegidas da gincana", () => {
     const caller = appRouter.createCaller(participantContext());
 
     await expect(caller.game.submitAnswer({ questionId: 15, selectedOptionId: 51 })).rejects.toThrow("Esta resposta já foi enviada e não pode ser alterada.");
+  });
+
+  it("associa o início da pergunta à identidade autenticada", async () => {
+    vi.mocked(startParticipantQuestion).mockResolvedValueOnce({ completed: false, attempt: null });
+    const caller = appRouter.createCaller(participantContext());
+
+    await expect(caller.game.startQuestion({ roundId: 9 })).resolves.toEqual({ completed: false, attempt: null });
+    expect(startParticipantQuestion).toHaveBeenCalledWith({ userId: 42, roundId: 9 });
   });
 
   it("rejeita ações administrativas críticas quando chamadas por um participante", async () => {

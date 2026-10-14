@@ -15,11 +15,13 @@ import {
   getPublicRankingData,
   getRoundById,
   getRoundQuestionSet,
+  getParticipantRoundProgress,
   getSubmittedAnswerMap,
   getTeamHistory,
   getUpcomingRound,
   listTeams,
   processExpiredRounds,
+  startParticipantQuestion,
   submitParticipantAnswer,
   updateAdminUserRole,
 } from "./db";
@@ -52,6 +54,7 @@ const roundInput = z.object({
   endsAt: z.number().int().positive(),
   closingWindowSeconds: z.number().int().min(10).max(600).default(60),
   notifyBeforeMinutes: z.number().int().min(0).max(120).default(10),
+  questionTimeLimitSeconds: z.number().int().min(5).max(3600).default(60),
 });
 
 export const appRouter = router({
@@ -137,8 +140,18 @@ export const appRouter = router({
       const canAnswer = !profile.isBlocked && ["LIBERADA", "ENCERRANDO"].includes(state);
       const questionSet = canAnswer ? await getRoundQuestionSet(round.id) : [];
       const answerMap = await getSubmittedAnswerMap(profile.id, questionSet.map(question => question.id));
-      return { round: { ...round, state, serverTime: Date.now() }, questions: questionSet, answerMap, canAnswer };
+      const progress = canAnswer ? await getParticipantRoundProgress(profile.id, round.id) : null;
+      return {
+        round: { ...round, state, serverTime: Date.now() },
+        questions: questionSet,
+        answerMap,
+        progress,
+        canAnswer,
+      };
     }),
+    startQuestion: protectedProcedure
+      .input(z.object({ roundId: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => startParticipantQuestion({ userId: ctx.user.id, roundId: input.roundId })),
     submitAnswer: protectedProcedure
       .input(z.object({ questionId: z.number().int().positive(), selectedOptionId: z.number().int().positive() }))
       .mutation(async ({ ctx, input }) => submitParticipantAnswer({ ...input, userId: ctx.user.id })),
