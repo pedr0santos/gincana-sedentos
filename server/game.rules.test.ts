@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
-import { buildRankings, canAcceptRoundAnswers, canCreateParticipantProfile, canSubmitParticipantAnswer, deriveRoundState, summarizeSubmittedAnswers, toPublicRanking } from "./db";
+import { buildRankings, calculateQuestionScore, canAcceptRoundAnswers, canCreateParticipantProfile, canSubmitParticipantAnswer, deriveRoundState, summarizeSubmittedAnswers, toPublicRanking } from "./db";
 import type { TrpcContext } from "./_core/context";
 
 const moment = 1_800_000_000_000;
@@ -44,8 +44,16 @@ describe("pontuação e classificação", () => {
       { participantId: 7, isCorrect: false, points: 20 },
       { participantId: 8, isCorrect: true, points: 15 },
     ]);
-    expect(totals.get(7)).toEqual({ answeredCount: 2, correctCount: 1, points: 10 });
-    expect(totals.get(8)).toEqual({ answeredCount: 1, correctCount: 1, points: 15 });
+    expect(totals.get(7)).toEqual({ answeredCount: 2, correctCount: 1, points: 10, correctResponseTimeMs: 0 });
+    expect(totals.get(8)).toEqual({ answeredCount: 1, correctCount: 1, points: 15, correctResponseTimeMs: 0 });
+  });
+
+  it("reduz pontos linearmente de 100% até 50% no limite da pergunta", () => {
+    expect(calculateQuestionScore(100, 0, 60)).toBe(100);
+    expect(calculateQuestionScore(100, 30_000, 60)).toBe(75);
+    expect(calculateQuestionScore(100, 60_000, 60)).toBe(50);
+    expect(calculateQuestionScore(100, 90_000, 60)).toBe(50);
+    expect(calculateQuestionScore(1, 60_000, 60)).toBe(1);
   });
 
   it("combina rodadas e ajustes administrativos no ranking de equipes", () => {
@@ -59,11 +67,25 @@ describe("pontuação e classificação", () => {
         { id: 10, teamId: 1, nickname: "Ana", fullName: "Ana Luz", avatarUrl: null, isBlocked: false },
         { id: 11, teamId: 2, nickname: "Bia", fullName: "Bia Sol", avatarUrl: null, isBlocked: false },
       ],
-      [{ participantId: 10, points: 30 }, { participantId: 11, points: 25 }],
+      [{ participantId: 10, points: 30, correctResponseTimeMs: 12_000 }, { participantId: 11, points: 25, correctResponseTimeMs: 8_000 }],
       [{ participantId: 11, points: 10 }]
     );
     expect(ranking.teams[0]).toMatchObject({ id: 2, points: 35, rank: 1, averagePoints: 35 });
     expect(ranking.participants[0]).toMatchObject({ participantId: 11, points: 35, rank: 1 });
+  });
+
+  it("usa o menor tempo correto como desempate antes do nome", () => {
+    const now = new Date();
+    const ranking = buildRankings(
+      [{ id: 1, name: "Aurora", slug: "aurora", color: "#00aaaa", accentColor: "#aaffff", symbol: "A", description: null, logoUrl: null, logoKey: null, createdAt: now, updatedAt: now }],
+      [
+        { id: 10, teamId: 1, nickname: "Zoe", fullName: "Zoe Luz", avatarUrl: null, isBlocked: false },
+        { id: 11, teamId: 1, nickname: "Ana", fullName: "Ana Sol", avatarUrl: null, isBlocked: false },
+      ],
+      [{ participantId: 10, points: 20, correctResponseTimeMs: 12_000 }, { participantId: 11, points: 20, correctResponseTimeMs: 8_000 }],
+      []
+    );
+    expect(ranking.participants.map(participant => participant.participantId)).toEqual([11, 10]);
   });
 
   it("remove dados pessoais da projeção pública do ranking", () => {

@@ -39,6 +39,7 @@ type EditableRound = {
   endsAt: string;
   closingWindowSeconds: number;
   notifyBeforeMinutes: number;
+  questionTimeLimitSeconds: number;
 };
 type EditableQuestion = {
   id?: number;
@@ -60,6 +61,7 @@ const emptyRound = (): EditableRound => ({
   endsAt: "",
   closingWindowSeconds: 60,
   notifyBeforeMinutes: 10,
+  questionTimeLimitSeconds: 60,
 });
 
 function readFile(file: File) {
@@ -141,7 +143,7 @@ function AdminContent() {
     onSuccess: () => {
       utils.admin.overview.invalidate();
       utils.admin.rounds.invalidate();
-      toast.success("Rodada excluída.");
+      toast.success("Rodada arquivada; os pontos foram preservados.");
     },
   });
   const saveQuestion = trpc.admin.saveQuestion.useMutation({
@@ -307,6 +309,7 @@ function AdminContent() {
       endsAt: fromDateTimeInput(roundForm.endsAt),
       closingWindowSeconds: roundForm.closingWindowSeconds,
       notifyBeforeMinutes: roundForm.notifyBeforeMinutes,
+      questionTimeLimitSeconds: roundForm.questionTimeLimitSeconds,
     });
   }
   function openQuestion(roundId: number, source?: any) {
@@ -603,6 +606,23 @@ function AdminContent() {
                     }
                   />
                 </label>
+                <label>
+                  <span className="field-label">Tempo por pergunta (segundos)</span>
+                  <input
+                    className="dark-input"
+                    type="number"
+                    min="5"
+                    max="3600"
+                    required
+                    value={roundForm.questionTimeLimitSeconds}
+                    onChange={event =>
+                      setRoundForm({
+                        ...roundForm,
+                        questionTimeLimitSeconds: Number(event.target.value),
+                      })
+                    }
+                  />
+                </label>
               </div>
               <label className="mt-4 block">
                 <span className="field-label">Descrição opcional</span>
@@ -856,6 +876,7 @@ function AdminContent() {
                             endsAt: toDateTimeInput(round.endsAt),
                             closingWindowSeconds: round.closingWindowSeconds,
                             notifyBeforeMinutes: round.notifyBeforeMinutes,
+                            questionTimeLimitSeconds: round.questionTimeLimitSeconds,
                           })
                         }
                       >
@@ -866,7 +887,7 @@ function AdminContent() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              "Excluir esta rodada e suas perguntas?"
+                              "Arquivar esta rodada? Os pontos e o histórico serão preservados."
                             )
                           )
                             removeRound.mutate({ roundId: round.id });

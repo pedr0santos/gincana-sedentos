@@ -98,4 +98,26 @@ describe("admin.saveQuestion", () => {
       { questionId: 91001, position: 2, label: "São Paulo", isCorrect: false },
     ]);
   });
+
+  it("arquiva a rodada sem apagá-la fisicamente", async () => {
+    const updates: unknown[] = [];
+    const physicalDelete = vi.fn();
+    const db = {
+      update: () => ({
+        set: (values: unknown) => ({
+          where: async () => {
+            updates.push(values);
+          },
+        }),
+      }),
+      delete: physicalDelete,
+    };
+    getDbMock.mockResolvedValue(db);
+
+    const caller = appRouter.createCaller(createAdminContext());
+    await expect(caller.admin.deleteRound({ roundId: 30001 })).resolves.toEqual({ success: true });
+
+    expect(updates).toEqual([{ archivedAt: expect.any(Date) }]);
+    expect(physicalDelete).not.toHaveBeenCalled();
+  });
 });

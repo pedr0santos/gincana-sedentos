@@ -117,9 +117,11 @@ export const rounds = mysqlTable(
       .default("draft"),
     closingWindowSeconds: int("closingWindowSeconds").notNull().default(60),
     notifyBeforeMinutes: int("notifyBeforeMinutes").notNull().default(10),
+    questionTimeLimitSeconds: int("questionTimeLimitSeconds").notNull().default(60),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     processedAt: timestamp("processedAt"),
+    archivedAt: timestamp("archivedAt"),
   },
   table => [index("rounds_schedule_idx").on(table.startsAt, table.endsAt)]
 );
@@ -186,6 +188,35 @@ export const answers = mysqlTable(
   ]
 );
 
+export const roundQuestionAttempts = mysqlTable(
+  "round_question_attempts",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    roundId: int("roundId")
+      .notNull()
+      .references(() => rounds.id, { onDelete: "cascade" }),
+    participantId: int("participantId")
+      .notNull()
+      .references(() => participantProfiles.id, { onDelete: "cascade" }),
+    questionId: int("questionId")
+      .notNull()
+      .references(() => questions.id, { onDelete: "cascade" }),
+    status: mysqlEnum("status", ["active", "answered", "expired"])
+      .notNull()
+      .default("active"),
+    startedAt: bigint("startedAt", { mode: "number" }).notNull(),
+    deadlineAt: bigint("deadlineAt", { mode: "number" }).notNull(),
+    completedAt: bigint("completedAt", { mode: "number" }),
+    responseTimeMs: int("responseTimeMs"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => [
+    uniqueIndex("round_question_attempts_unique").on(table.roundId, table.participantId, table.questionId),
+    index("round_question_attempts_participant_round_idx").on(table.participantId, table.roundId),
+    index("round_question_attempts_question_idx").on(table.questionId),
+  ]
+);
+
 export const roundScores = mysqlTable(
   "round_scores",
   {
@@ -199,6 +230,7 @@ export const roundScores = mysqlTable(
     answeredCount: int("answeredCount").notNull().default(0),
     correctCount: int("correctCount").notNull().default(0),
     points: int("points").notNull().default(0),
+    correctResponseTimeMs: int("correctResponseTimeMs").notNull().default(0),
     processedAt: timestamp("processedAt").defaultNow().notNull(),
   },
   table => [
