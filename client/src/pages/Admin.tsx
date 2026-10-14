@@ -26,7 +26,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation, useSearch } from "wouter";
 
@@ -92,6 +92,7 @@ function AdminContent() {
   const utils = trpc.useUtils();
   const [tab, setTab] = useState<Tab>(activeTab);
   const [roundForm, setRoundForm] = useState<EditableRound>(emptyRound());
+  const roundFormRef = useRef<HTMLFormElement>(null);
   const [questionForm, setQuestionForm] = useState<EditableQuestion | null>(
     null
   );
@@ -244,6 +245,12 @@ function AdminContent() {
   useEffect(() => {
     setTab(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (roundForm.id) {
+      roundFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [roundForm.id]);
 
   const selectedParticipant = useMemo(
     () =>
@@ -472,13 +479,13 @@ function AdminContent() {
                   {overview.data?.ranking.teams.map(team => (
                     <div className="team-row" key={team.id}>
                       <span className="rank-number">#{team.rank}</span>
-                      <span
-                        className="team-avatar h-8 w-8 text-sm"
-                        style={{ background: team.color }}
-                      >
-                        {team.symbol}
-                      </span>
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="team-avatar h-8 w-8 shrink-0 text-sm"
+                          style={{ background: team.color }}
+                        >
+                          {team.symbol}
+                        </span>
                         <p className="team-name">{team.name}</p>
                       </div>
                       <span className="team-points">
@@ -520,7 +527,7 @@ function AdminContent() {
         )}
         {tab === "rodadas" && (
           <section>
-            <form className="glass-card admin-form" onSubmit={submitRound}>
+            <form ref={roundFormRef} className="glass-card admin-form" onSubmit={submitRound}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3>{roundForm.id ? "Editar rodada" : "Nova rodada"}</h3>
                 {roundForm.id && (
@@ -866,6 +873,7 @@ function AdminContent() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        type="button"
                         className="small-button"
                         onClick={() =>
                           setRoundForm({
@@ -883,6 +891,7 @@ function AdminContent() {
                         <Edit3 size={14} /> Editar
                       </button>
                       <button
+                        type="button"
                         className="small-button danger"
                         onClick={() => {
                           if (
@@ -903,6 +912,7 @@ function AdminContent() {
                         {round.questions.length} perguntas
                       </p>
                       <button
+                        type="button"
                         className="small-button"
                         onClick={() => openQuestion(round.id)}
                       >
@@ -918,6 +928,7 @@ function AdminContent() {
                           {question.position}. {question.prompt}
                         </p>
                         <button
+                          type="button"
                           className="small-button shrink-0"
                           onClick={() => openQuestion(round.id, question)}
                         >
