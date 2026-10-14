@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { randomUUID } from "node:crypto";
 import {
@@ -359,10 +359,10 @@ export async function processExpiredRounds(now = Date.now()) {
   const expired = await db
     .select()
     .from(rounds)
-    .where(and(lte(rounds.endsAt, now), eq(rounds.lifecycle, "draft")));
+    .where(and(lte(rounds.endsAt, now), eq(rounds.lifecycle, "draft"), isNull(rounds.archivedAt)));
 
   for (const round of expired) {
-    await db.update(rounds).set({ lifecycle: "processing" }).where(eq(rounds.id, round.id));
+    await db.update(rounds).set({ lifecycle: "processing" }).where(and(eq(rounds.id, round.id), isNull(rounds.archivedAt)));
     const submitted = await db
       .select({
         participantId: answers.participantId,
@@ -404,7 +404,7 @@ export async function processExpiredRounds(now = Date.now()) {
         },
       });
     }
-    await db.update(rounds).set({ lifecycle: "result", processedAt: new Date() }).where(eq(rounds.id, round.id));
+    await db.update(rounds).set({ lifecycle: "result", processedAt: new Date() }).where(and(eq(rounds.id, round.id), isNull(rounds.archivedAt)));
   }
 }
 
@@ -517,7 +517,7 @@ export async function getRoundQuestionSet(roundId: number, includeAnswers = fals
 
 export async function getRoundById(roundId: number) {
   const db = await requireDb();
-  const row = await db.select().from(rounds).where(eq(rounds.id, roundId)).limit(1);
+  const row = await db.select().from(rounds).where(and(eq(rounds.id, roundId), isNull(rounds.archivedAt))).limit(1);
   return row[0];
 }
 
@@ -615,7 +615,7 @@ export async function startParticipantQuestion(input: { userId: number; roundId:
 
 export async function getUpcomingRound() {
   const db = await requireDb();
-  const all = await db.select().from(rounds).orderBy(asc(rounds.startsAt));
+  const all = await db.select().from(rounds).where(isNull(rounds.archivedAt)).orderBy(asc(rounds.startsAt));
   const now = Date.now();
   const active = all.find(round => deriveRoundState(round, now) === "LIBERADA" || deriveRoundState(round, now) === "ENCERRANDO");
   const next = all.find(round => round.startsAt > now);
@@ -632,7 +632,7 @@ export async function submitParticipantAnswer(input: { userId: number; questionI
     .select({ questionId: questions.id, roundId: rounds.id, startsAt: rounds.startsAt, endsAt: rounds.endsAt, lifecycle: rounds.lifecycle, closingWindowSeconds: rounds.closingWindowSeconds, questionTimeLimitSeconds: rounds.questionTimeLimitSeconds })
     .from(questions)
     .innerJoin(rounds, eq(questions.roundId, rounds.id))
-    .where(eq(questions.id, input.questionId))
+    .where(and(eq(questions.id, input.questionId), isNull(rounds.archivedAt)))
     .limit(1);
   const item = question[0];
   if (!item || !canAcceptRoundAnswers(item)) throw new Error("Esta rodada não está disponível para respostas.");

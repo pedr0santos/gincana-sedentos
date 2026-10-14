@@ -26,7 +26,7 @@ import {
   updateAdminUserRole,
 } from "./db";
 import { answers, participantProfiles, questionOptions, questions, rounds, roundScores, scoreAdjustments, teams } from "../drizzle/schema";
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { storagePut } from "./storage";
 import { authenticateWithPassword, publicUser, registerWithPassword, requestPasswordReset, resetPassword } from "./_core/passwordAuth";
 import { ENV } from "./_core/env";
@@ -184,8 +184,8 @@ export const appRouter = router({
       const [ranking, participantCount, roundCount, scheduledRounds] = await Promise.all([
         getRankingData(),
         db.select({ id: participantProfiles.id }).from(participantProfiles),
-        db.select({ id: rounds.id }).from(rounds),
-        db.select().from(rounds).orderBy(asc(rounds.startsAt)),
+        db.select({ id: rounds.id }).from(rounds).where(isNull(rounds.archivedAt)),
+        db.select().from(rounds).where(isNull(rounds.archivedAt)).orderBy(asc(rounds.startsAt)),
       ]);
       return { ranking, participantCount: participantCount.length, roundCount: roundCount.length, rounds: scheduledRounds.map(round => ({ ...round, state: deriveRoundState(round) })) };
     }),
@@ -215,7 +215,7 @@ export const appRouter = router({
     rounds: adminProcedure.query(async () => {
       const db = await getDb();
       if (!db) throw new Error("Banco indisponível.");
-      const data = await db.select().from(rounds).orderBy(asc(rounds.startsAt));
+      const data = await db.select().from(rounds).where(isNull(rounds.archivedAt)).orderBy(asc(rounds.startsAt));
       return Promise.all(data.map(async round => ({ ...round, state: deriveRoundState(round), questions: await getRoundQuestionSet(round.id, true) })));
     }),
     createOrUpdateRound: adminProcedure.input(roundInput).mutation(async ({ input }) => {
@@ -224,6 +224,9 @@ export const appRouter = router({
       if (!db) throw new Error("Banco indisponível.");
       const values = { ...input, description: input.description ?? null };
       if (input.id) {
+        const existing = await db.select({ id: rounds.id, archivedAt: rounds.archivedAt }).from(rounds).where(eq(rounds.id, input.id)).limit(1);
+        if (!existing[0]) throw new Error("Rodada não encontrada.");
+        if (existing[0].archivedAt) throw new Error("Não é possível editar uma rodada arquivada.");
         await db.update(rounds).set(values).where(eq(rounds.id, input.id));
         return { id: input.id };
       }
@@ -233,7 +236,7 @@ export const appRouter = router({
     deleteRound: adminProcedure.input(z.object({ roundId: z.number().int().positive() })).mutation(async ({ input }) => {
       const db = await getDb();
       if (!db) throw new Error("Banco indisponível.");
-      await db.delete(rounds).where(eq(rounds.id, input.roundId));
+      await db.update(rounds).set({ archivedAt: new Date() }).where(and(eq(rounds.id, input.roundId), isNull(rounds.archivedAt)));
       return { success: true };
     }),
     saveQuestion: adminProcedure
@@ -256,8 +259,9 @@ export const appRouter = router({
         if (input.options.filter(option => option.isCorrect).length !== 1) throw new Error("Defina exatamente uma alternativa correta.");
         const db = await getDb();
         if (!db) throw new Error("Banco indisponível.");
-        const round = await db.select({ id: rounds.id }).from(rounds).where(eq(rounds.id, input.roundId)).limit(1);
+        const round = await db.select({ id: rounds.id, archivedAt: rounds.archivedAt }).from(rounds).where(eq(rounds.id, input.roundId)).limit(1);
         if (!round[0]) throw new Error("A rodada selecionada não existe mais. Atualize o painel e tente novamente.");
+        if (round[0].archivedAt) throw new Error("Não é possível adicionar perguntas a uma rodada arquivada.");
         const occupiedPosition = await db
           .select({ id: questions.id })
           .from(questions)

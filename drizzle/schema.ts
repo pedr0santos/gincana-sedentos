@@ -121,6 +121,7 @@ export const rounds = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
     processedAt: timestamp("processedAt"),
+    archivedAt: timestamp("archivedAt"),
   },
   table => [index("rounds_schedule_idx").on(table.startsAt, table.endsAt)]
 );

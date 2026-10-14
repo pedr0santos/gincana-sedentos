@@ -1,0 +1,1 @@
+ALTER TABLE `rounds` ADD `archivedAt` timestamp;

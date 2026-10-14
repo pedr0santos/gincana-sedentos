@@ -143,7 +143,7 @@ function AdminContent() {
     onSuccess: () => {
       utils.admin.overview.invalidate();
       utils.admin.rounds.invalidate();
-      toast.success("Rodada excluída.");
+      toast.success("Rodada arquivada; os pontos foram preservados.");
     },
   });
   const saveQuestion = trpc.admin.saveQuestion.useMutation({
@@ -887,7 +887,7 @@ function AdminContent() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              "Excluir esta rodada e suas perguntas?"
+                              "Arquivar esta rodada? Os pontos e o histórico serão preservados."
                             )
                           )
                             removeRound.mutate({ roundId: round.id });
