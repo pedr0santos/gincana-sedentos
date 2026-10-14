@@ -48,11 +48,12 @@ describe("pontuação e classificação", () => {
     expect(totals.get(8)).toEqual({ answeredCount: 1, correctCount: 1, points: 15, correctResponseTimeMs: 0 });
   });
 
-  it("reduz pontos linearmente até zero no limite da pergunta", () => {
+  it("reduz pontos linearmente de 100% até 50% no limite da pergunta", () => {
     expect(calculateQuestionScore(100, 0, 60)).toBe(100);
-    expect(calculateQuestionScore(100, 15_000, 60)).toBe(75);
-    expect(calculateQuestionScore(100, 60_000, 60)).toBe(0);
-    expect(calculateQuestionScore(100, 90_000, 60)).toBe(0);
+    expect(calculateQuestionScore(100, 30_000, 60)).toBe(75);
+    expect(calculateQuestionScore(100, 60_000, 60)).toBe(50);
+    expect(calculateQuestionScore(100, 90_000, 60)).toBe(50);
+    expect(calculateQuestionScore(1, 60_000, 60)).toBe(1);
   });
 
   it("combina rodadas e ajustes administrativos no ranking de equipes", () => {

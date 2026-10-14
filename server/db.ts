@@ -225,7 +225,7 @@ export function canAcceptRoundAnswers(
 export function calculateQuestionScore(points: number, responseTimeMs: number, timeLimitSeconds: number) {
   if (points <= 0 || timeLimitSeconds <= 0) return 0;
   const ratio = Math.max(0, Math.min(1, responseTimeMs / (timeLimitSeconds * 1000)));
-  return Math.max(0, Math.floor(points * (1 - ratio)));
+  return Math.max(1, Math.round(points * (1 - 0.5 * ratio)));
 }
 
 export function getQuestionDeadline(startedAt: number, timeLimitSeconds: number, roundEndsAt: number) {
