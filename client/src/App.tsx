@@ -11,6 +11,7 @@ import LiveRanking from "./pages/LiveRanking";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import Onboarding from "./pages/Onboarding";
+import Profile from "./pages/Profile";
 import Ranking from "./pages/Ranking";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
@@ -27,6 +28,7 @@ function Router() {
     <Route path="/cadastro" component={Onboarding} />
     <Route path="/rodada/:id" component={RoundPlay} />
     <Route path="/equipe" component={Team} />
+    <Route path="/perfil" component={Profile} />
     <Route path="/historico" component={History} />
     <Route path="/ranking" component={Ranking} />
     <Route path="/ao-vivo" component={LiveRanking} />

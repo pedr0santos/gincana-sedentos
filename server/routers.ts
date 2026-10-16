@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -14,6 +15,7 @@ import {
   getRankingData,
   getPublicRankingData,
   toParticipantRankingPage,
+  updateParticipantProfileByUserId,
   getRoundById,
   getRoundQuestionSet,
   getParticipantRoundProgress,
@@ -28,7 +30,7 @@ import {
 } from "./db";
 import { answers, participantProfiles, questionOptions, questions, rounds, roundScores, scoreAdjustments, teams } from "../drizzle/schema";
 import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
-import { storagePut } from "./storage";
+import { storageDelete, storagePut } from "./storage";
 import { authenticateWithPassword, publicUser, registerWithPassword, requestPasswordReset, resetPassword } from "./_core/passwordAuth";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
@@ -100,6 +102,28 @@ export const appRouter = router({
   game: router({
     teams: publicProcedure.query(async () => listTeams()),
     myProfile: protectedProcedure.query(async ({ ctx }) => withProtectedAvatar(await getProfileByUserId(ctx.user.id))),
+    updateMyProfile: protectedProcedure
+      .input(z.object({
+        fullName: z.string().trim().min(3).max(140),
+        nickname: z.string().trim().min(2).max(80),
+        contact: z.string().trim().min(5).max(320),
+        avatarKey: z.string().min(1).max(512).nullable().optional(),
+      }).strict())
+      .mutation(async ({ ctx, input }) => {
+        const avatarPrefix = `gincana/avatar/${ctx.user.id}/`;
+        if (input.avatarKey && !input.avatarKey.startsWith(avatarPrefix)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "A foto selecionada não pertence a esta conta." });
+        }
+        const result = await updateParticipantProfileByUserId(ctx.user.id, input);
+        if (result.previousAvatarKey?.startsWith(avatarPrefix)) {
+          try {
+            await storageDelete(result.previousAvatarKey);
+          } catch {
+            console.warn("[Storage] Não foi possível remover uma foto de perfil substituída.");
+          }
+        }
+        return withProtectedAvatar(result.profile);
+      }),
     completeProfile: protectedProcedure.input(profileInput).mutation(async ({ ctx, input }) => {
       return withProtectedAvatar(await createParticipantProfile({ ...input, userId: ctx.user.id }));
     }),

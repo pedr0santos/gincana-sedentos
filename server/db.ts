@@ -325,6 +325,37 @@ export async function getProfileByUserId(userId: number) {
   return rows[0];
 }
 
+export async function updateParticipantProfileByUserId(userId: number, input: {
+  fullName: string;
+  nickname: string;
+  contact: string;
+  avatarKey?: string | null;
+}) {
+  const db = await requireDb();
+  const currentProfile = await getProfileByUserId(userId);
+  if (!currentProfile) throw new Error("Perfil não encontrado. Conclua seu cadastro antes de editar os dados.");
+
+  const previousAvatarKey = input.avatarKey !== undefined && input.avatarKey !== currentProfile.avatarKey
+    ? currentProfile.avatarKey
+    : null;
+  const profileValues: Partial<typeof participantProfiles.$inferInsert> = {
+    fullName: input.fullName,
+    nickname: input.nickname,
+    contact: input.contact,
+  };
+  if (input.avatarKey !== undefined) {
+    profileValues.avatarKey = input.avatarKey;
+    profileValues.avatarUrl = null;
+  }
+
+  await db.transaction(async transaction => {
+    await transaction.update(participantProfiles).set(profileValues).where(eq(participantProfiles.userId, userId));
+    await transaction.update(users).set({ name: input.fullName }).where(eq(users.id, userId));
+  });
+
+  return { profile: await getProfileByUserId(userId), previousAvatarKey };
+}
+
 export async function getProfileById(profileId: number) {
   const db = await requireDb();
   const rows = await db.select().from(participantProfiles).where(eq(participantProfiles.id, profileId)).limit(1);
