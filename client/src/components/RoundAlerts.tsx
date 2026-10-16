@@ -4,6 +4,17 @@ import { toast } from "sonner";
 
 type FeaturedRound = { id: number; title: string; state: string; startsAt: number; notifyBeforeMinutes: number } | null | undefined;
 
+// Chrome Android proíbe `new Notification()`; precisa passar pelo service worker.
+async function notify(title: string, options: NotificationOptions) {
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration();
+    if (registration) await registration.showNotification(title, options);
+    else new Notification(title, options);
+  } catch (error) {
+    console.warn("[Alertas] Não foi possível exibir a notificação.", error);
+  }
+}
+
 export function RoundAlerts({ round }: { round: FeaturedRound }) {
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() => typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   useEffect(() => {
@@ -14,8 +25,8 @@ export function RoundAlerts({ round }: { round: FeaturedRound }) {
     const key = `sedentos-alert-${round.id}-${released ? "open" : "soon"}`;
     if ((!openingSoon && !released) || sessionStorage.getItem(key)) return;
     const body = released ? "A rodada está liberada. Responda agora e pontue para sua equipe." : `${round.title} começa em breve. Prepare-se para entrar na arena.`;
-    new Notification(released ? "Rodada liberada!" : "Atenção, participante", { body, tag: key });
     sessionStorage.setItem(key, "sent");
+    void notify(released ? "Rodada liberada!" : "Atenção, participante", { body, tag: key });
   }, [round, permission]);
 
   if (permission === "unsupported") return null;
