@@ -28,6 +28,7 @@ export default function Profile() {
   const [avatarKey, setAvatarKey] = useState<string | null | undefined>(undefined);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [avatarVersion, setAvatarVersion] = useState<number | null>(null);
 
   const profile = profileQuery.data;
   useEffect(() => {
@@ -63,11 +64,13 @@ export default function Profile() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     try {
+      const avatarChanged = avatarKey !== undefined;
       await updateProfile.mutateAsync({
         ...form,
         ...(avatarKey !== undefined ? { avatarKey } : {}),
       });
       await Promise.all([utils.game.myProfile.invalidate(), utils.auth.me.invalidate()]);
+      if (avatarChanged) setAvatarVersion(Date.now());
       setAvatarKey(undefined);
       setAvatarPreview(null);
       setRemoveAvatar(false);
@@ -94,6 +97,9 @@ export default function Profile() {
   }
 
   const shownAvatar = avatarPreview ?? (removeAvatar ? null : profile.avatarUrl);
+  const avatarSrc = shownAvatar?.startsWith("/api/media/avatar/") && avatarVersion
+    ? `${shownAvatar}?v=${avatarVersion}`
+    : shownAvatar;
   const initials = form.fullName.trim().split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join("").toUpperCase();
   const isSaving = updateProfile.isPending || upload.isPending;
 
@@ -105,7 +111,7 @@ export default function Profile() {
       <form className="glass-card min-w-0 p-5 sm:p-7" onSubmit={onSubmit}>
         <div className="flex flex-wrap items-center gap-4 border-b border-white/10 pb-6">
           <Avatar className="size-20 border border-white/15">
-            {shownAvatar && <AvatarImage src={shownAvatar} alt={`Foto de ${form.fullName || "perfil"}`} className="object-cover" />}
+            {avatarSrc && <AvatarImage key={avatarSrc} src={avatarSrc} alt={`Foto de ${form.fullName || "perfil"}`} className="object-cover" />}
             <AvatarFallback className="bg-teal-900 text-lg font-bold text-white">{initials || "?"}</AvatarFallback>
           </Avatar>
           <div className="flex flex-wrap items-center gap-2">
