@@ -8,8 +8,34 @@ import { trpc } from "@/lib/trpc";
 import { ChevronLeft, ChevronRight, Loader2, Radio, RefreshCw, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 
+type PlayerAvatarProps = {
+  src: string | null;
+  nickname: string;
+  initials: string;
+  teamColor?: string;
+};
+
+function PlayerAvatar({ src, nickname, initials, teamColor }: PlayerAvatarProps) {
+  const [imageStatus, setImageStatus] = useState<"loading" | "loaded" | "error">(src ? "loading" : "error");
+
+  return <Avatar className="size-9">
+    {src && <AvatarImage
+      src={src}
+      alt={`Foto de ${nickname}`}
+      className="object-cover"
+      loading="eager"
+      decoding="async"
+      onLoadingStatusChange={status => setImageStatus(status === "loaded" ? "loaded" : status === "error" ? "error" : "loading")}
+    />}
+    <AvatarFallback className="text-xs text-white" style={{ background: teamColor }}>
+      {src && imageStatus === "loading" ? <Loader2 size={15} className="animate-spin" aria-label={`Carregando foto de ${nickname}`} /> : initials || "?"}
+    </AvatarFallback>
+  </Avatar>;
+}
+
 export default function Ranking() {
   const { user, loading: authLoading } = useAuth();
+  const utils = trpc.useUtils();
   const [page, setPage] = useState(1);
   const showPhotos = Boolean(user) && !authLoading;
   const publicRanking = trpc.game.ranking.useQuery(undefined, { refetchInterval: 8_000, refetchOnMount: "always" });
@@ -35,6 +61,11 @@ export default function Ranking() {
     if (showPhotos ? participantRanking.data : data) setPage(currentPage);
   }, [showPhotos, participantRanking.data, data, currentPage]);
 
+  useEffect(() => {
+    if (!showPhotos || participantRanking.data?.page !== page || page >= totalPages) return;
+    void utils.game.participantRanking.prefetch({ page: page + 1 }, { staleTime: 8_000 });
+  }, [page, showPhotos, totalPages, participantRanking.data?.page, utils]);
+
   if (isLoading) return <div className="auth-screen"><Loader2 className="animate-spin text-teal-200" /></div>;
   return <div className="app-bg"><GameNav /><main className="page-shell"><p className="eyebrow"><Radio className="mr-1 inline" size={12} /> atualização enquanto esta tela estiver aberta</p><h1 className="page-title">A corrida pelo <span className="text-orange-200">topo.</span></h1><p className="page-intro">A classificação reflete os pontos computados no servidor após cada rodada concluída.</p>
     <section className="mt-8 grid items-start gap-4 lg:grid-cols-[1.2fr_.8fr]"><article className="glass-card min-w-0 overflow-hidden"><div className="border-b border-white/10 p-6"><Trophy className="text-orange-200" size={22} /><h2 className="mt-3 font-display text-2xl font-bold">Equipes</h2></div><div className="ranking-list">{teams.map(team => <div className="team-row py-5" key={team.id}><span className="rank-number text-base">#{team.rank}</span><div className="team-detail"><span className="team-avatar h-11 w-11 text-xl" style={{ background: team.color }}>{team.symbol}</span><div className="min-w-0 flex-1"><div className="flex justify-between gap-3"><p className="team-name text-base">{team.name}</p><span className="text-xs text-slate-400">{team.memberCount} pessoas</span></div><div className="mt-3"><div className="progress-track"><div className="progress-fill" style={{ width: `${Math.max(5, (team.points / Math.max(teams[0]?.points || 1, 1)) * 100)}%`, background: `linear-gradient(90deg, ${team.color}, ${team.accentColor})` }} /></div></div></div></div><span className="team-points text-base">{formatPoints(team.points)} pontos</span></div>)}</div></article>
@@ -54,10 +85,13 @@ export default function Ranking() {
               return <div className="grid grid-cols-[minmax(1.75rem,max-content)_minmax(0,1fr)_auto] items-center gap-2 border-b border-white/10 py-3 last:border-0" key={player.participantId}>
                 <span className="rank-number">{player.rank}º</span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <Avatar className="size-9" key={`${player.participantId}-${showPhotos}`}>
-                    {showPhotos && player.avatarUrl && <AvatarImage src={player.avatarUrl} alt={`Foto de ${player.nickname}`} className="object-cover" loading="lazy" />}
-                    <AvatarFallback className="text-xs text-white" style={{ background: team?.color }}>{initials || "?"}</AvatarFallback>
-                  </Avatar>
+                  <PlayerAvatar
+                    key={`${player.participantId}-${showPhotos}-${player.avatarUrl ?? "initials"}`}
+                    src={showPhotos ? player.avatarUrl : null}
+                    nickname={player.nickname}
+                    initials={initials}
+                    teamColor={team?.color}
+                  />
                   <div className="min-w-0">
                     <p className="team-name truncate" title={player.nickname}>{player.nickname}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-400" title={team?.name}>{team?.name ?? "Sem equipe"}</p>
