@@ -33,7 +33,7 @@ export default function Onboarding() {
       setUploading(true);
       const dataUrl = await readFile(file);
       const result = await upload.mutateAsync({ dataUrl, fileName: file.name, category: "avatar" });
-      setAvatar({ ...result, previewUrl: URL.createObjectURL(file) });
+      setAvatar({ ...result, previewUrl: dataUrl });
       toast.success("Foto carregada com segurança.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível enviar a foto.");
