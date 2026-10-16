@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "node:crypto";
 
@@ -51,4 +51,9 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
   const client = getS3Client();
   const key = normalizeKey(relKey);
   return getSignedUrl(client, new GetObjectCommand({ Bucket: ENV.s3Bucket, Key: key }), { expiresIn: 3600 });
+}
+
+export async function storageDelete(relKey: string): Promise<void> {
+  const client = getS3Client();
+  await client.send(new DeleteObjectCommand({ Bucket: ENV.s3Bucket, Key: normalizeKey(relKey) }));
 }

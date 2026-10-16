@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { LogOut, RadioTower, Shield, Trophy, UsersRound } from "lucide-react";
+import { LogOut, RadioTower, Shield, Trophy, UserRound, UsersRound } from "lucide-react";
 import { useLocation } from "wouter";
 import { InstallAppPrompt } from "./InstallAppPrompt";
 
@@ -7,11 +7,13 @@ const navItems = [
   { path: "/", label: "Início", icon: RadioTower },
   { path: "/equipe", label: "Equipe", icon: UsersRound },
   { path: "/ranking", label: "Ranking", icon: Trophy },
+  { path: "/perfil", label: "Meu perfil", icon: UserRound },
 ];
 
 export function GameNav() {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
+  const visibleNavItems = user ? navItems : navItems.filter(item => item.path !== "/perfil");
   return (
     <>
       <header className="game-header">
@@ -20,7 +22,7 @@ export function GameNav() {
           <span>SEDENTOS</span>
         </button>
         <nav className="desktop-nav" aria-label="Navegação principal">
-          {navItems.map(item => (
+          {visibleNavItems.map(item => (
             <button key={item.path} onClick={() => setLocation(item.path)} className={location === item.path ? "nav-link active" : "nav-link"}>
               {item.label}
             </button>
@@ -34,7 +36,7 @@ export function GameNav() {
         </button>
       </header>
       <nav className="mobile-nav" aria-label="Navegação móvel">
-        {navItems.map(item => {
+        {visibleNavItems.map(item => {
           const Icon = item.icon;
           return <button key={item.path} onClick={() => setLocation(item.path)} className={location === item.path ? "mobile-nav-item active" : "mobile-nav-item"}><Icon size={18} /><span>{item.label}</span></button>;
         })}

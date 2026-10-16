@@ -44,6 +44,12 @@ As fotos ficam visíveis somente com sessão autenticada: qualquer usuário loga
 
 A projeção em `/ao-vivo` continua exibindo somente equipes, sem jogadores nem fotos. No aceite, confira a segunda página com mais de dez participantes, a foto de outro jogador com sessão e a recusa de acesso à imagem em uma janela anônima.
 
+## Meu perfil
+
+Participantes autenticados podem acessar **Meu perfil** pela navegação. A página permite editar nome completo, apelido, contato (e-mail ou telefone) e foto; o nome completo também atualiza o nome da conta exibido na navegação. O e-mail de acesso/login é apenas informativo e não pode ser alterado nesta tela. A equipe aparece como somente leitura; mudanças de equipe continuam restritas à administração.
+
+Uma foto nova é enviada ao armazenamento e só passa a ser a foto do perfil quando as alterações são salvas. A pessoa pode remover a foto para voltar às iniciais. O perfil deixa de referenciar a foto substituída ou removida mesmo se a credencial do bucket não permitir apagar fisicamente o arquivo antigo; nesse caso, o objeto pode permanecer órfão no armazenamento.
+
 ## Registro de aceite operacional
 
 Em **15 de agosto de 2026**, foi feita uma consulta somente de leitura aos dados já configurados no ambiente. A **Rodada 1** estava no estado de resultado e apresentava processamento concluído. Também foram identificados participantes cadastrados, resposta enviada e pontuação processada, confirmando a persistência do fluxo de rodada encerrada até a consolidação de pontos. Nenhum dado de teste foi inserido ou alterado durante essa verificação.
