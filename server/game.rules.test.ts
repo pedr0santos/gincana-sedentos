@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
-import { buildRankings, calculateQuestionScore, canAcceptRoundAnswers, canCreateParticipantProfile, canSubmitParticipantAnswer, deriveRoundState, summarizeSubmittedAnswers, toPublicRanking } from "./db";
+import { buildRankings, calculateQuestionScore, canAcceptRoundAnswers, canCreateParticipantProfile, canSubmitParticipantAnswer, deriveRoundState, summarizeSubmittedAnswers, toParticipantRankingPage, toPublicRanking } from "./db";
 import type { TrpcContext } from "./_core/context";
 
 const moment = 1_800_000_000_000;
@@ -92,7 +92,7 @@ describe("pontuação e classificação", () => {
     const now = new Date();
     const ranking = buildRankings(
       [{ id: 1, name: "Aurora", slug: "aurora", color: "#00aaaa", accentColor: "#aaffff", symbol: "A", description: "privada", logoUrl: "/logo", logoKey: "logo-key", createdAt: now, updatedAt: now }],
-      [{ id: 10, teamId: 1, nickname: "Ana", fullName: "Ana Luz", avatarUrl: "/private-avatar", isBlocked: false }],
+      [{ id: 10, teamId: 1, nickname: "Ana", fullName: "Ana Luz", avatarUrl: "/private-avatar", avatarKey: "private-key", isBlocked: false }],
       [{ participantId: 10, points: 30 }],
       [],
     );
@@ -100,7 +100,27 @@ describe("pontuação e classificação", () => {
     expect(publicRanking.participants[0]).toEqual({ participantId: 10, teamId: 1, nickname: "Ana", points: 30, rank: 1 });
     expect(publicRanking.participants[0]).not.toHaveProperty("fullName");
     expect(publicRanking.participants[0]).not.toHaveProperty("avatarUrl");
+    expect(publicRanking.participants[0]).not.toHaveProperty("avatarKey");
+    expect(publicRanking.participants[0]).not.toHaveProperty("hasAvatar");
     expect(publicRanking.teams[0]).not.toHaveProperty("logoKey");
+  });
+
+  it.each([0, 1, 10, 11, 23])("pagina %i participantes sem perder posições nem jogadores sem pontos", count => {
+    const profiles = Array.from({ length: count }, (_, index) => ({
+      id: index + 1, teamId: 1, nickname: `Jogador ${String(index + 1).padStart(2, "0")}`,
+      fullName: "Nome privado", avatarUrl: "https://storage/private", avatarKey: index === 0 ? "private-key" : null, isBlocked: false,
+    }));
+    const ranking = buildRankings([], profiles, [], []);
+    const pages = Array.from({ length: Math.max(1, Math.ceil(count / 10)) }, (_, index) => toParticipantRankingPage(ranking, index + 1));
+    expect(pages.flatMap(page => page.items).map(item => item.rank)).toEqual(Array.from({ length: count }, (_, index) => index + 1));
+    expect(pages[0]).toMatchObject({ total: count, page: 1, pageSize: 10, totalPages: Math.max(1, Math.ceil(count / 10)) });
+    expect(pages.every(page => page.items.length <= 10)).toBe(true);
+    expect(pages.flatMap(page => page.items).every(item => item.points === 0)).toBe(true);
+    if (count) {
+      expect(pages[0].items[0]).toEqual({ participantId: 1, teamId: 1, nickname: "Jogador 01", points: 0, rank: 1, avatarUrl: "/api/media/avatar/1" });
+    }
+    if (count > 1) expect(pages[0].items[1].avatarUrl).toBeNull();
+    expect(toParticipantRankingPage(ranking, 999)).toEqual(pages.at(-1));
   });
 });
 

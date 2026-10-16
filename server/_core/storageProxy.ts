@@ -5,6 +5,7 @@ import { storageGetSignedUrl } from "../storage";
 
 export function registerStorageProxy(app: Express) {
   app.get("/api/media/avatar/:participantId", async (req, res) => {
+    res.set("Cache-Control", "private, no-store");
     const context = await createContext({ req, res } as any);
     if (!context.user) {
       res.status(401).send("Authentication required");
@@ -16,7 +17,7 @@ export function registerStorageProxy(app: Express) {
       return;
     }
     const profile = await getProfileById(participantId);
-    if (!profile || (profile.userId !== context.user.id && context.user.role !== "admin")) {
+    if (!profile) {
       res.status(404).send("Media not found");
       return;
     }
@@ -26,7 +27,6 @@ export function registerStorageProxy(app: Express) {
     }
     try {
       const signedUrl = await storageGetSignedUrl(profile.avatarKey);
-      res.set("Cache-Control", "private, no-store");
       res.redirect(307, signedUrl);
     } catch {
       res.status(502).send("Storage backend error");

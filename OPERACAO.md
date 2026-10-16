@@ -36,6 +36,14 @@ Após instalado, o aplicativo mantém a abertura básica disponível mesmo em um
 
 Fotos de perfil, logos de equipes e mídias de perguntas são encaminhadas ao armazenamento em nuvem do projeto. Envie imagens PNG, JPEG ou WEBP; para perguntas também é permitido vídeo MP4, com limite de 8 MB por arquivo.
 
+## Ranking individual e fotos
+
+Em `/ranking`, a lista de jogadores mostra dez participantes por página, incluindo quem ainda não pontuou. As posições são gerais e a atualização automática a cada oito segundos preserva a página selecionada. As setas permitem percorrer toda a classificação.
+
+As fotos ficam visíveis somente com sessão autenticada: qualquer usuário logado pode visualizar a foto dos outros participantes. Visitantes continuam vendo apelido, equipe, pontos e posição, com iniciais no lugar da foto. Fotos ausentes ou que não carregarem também usam iniciais. A API pública não retorna fotos, nomes completos, contatos ou chaves de armazenamento. A rota de fotos exige autenticação e envia `Cache-Control: private, no-store`.
+
+A projeção em `/ao-vivo` continua exibindo somente equipes, sem jogadores nem fotos. No aceite, confira a segunda página com mais de dez participantes, a foto de outro jogador com sessão e a recusa de acesso à imagem em uma janela anônima.
+
 ## Registro de aceite operacional
 
 Em **15 de agosto de 2026**, foi feita uma consulta somente de leitura aos dados já configurados no ambiente. A **Rodada 1** estava no estado de resultado e apresentava processamento concluído. Também foram identificados participantes cadastrados, resposta enviada e pontuação processada, confirmando a persistência do fluxo de rodada encerrada até a consolidação de pontos. Nenhum dado de teste foi inserido ou alterado durante essa verificação.

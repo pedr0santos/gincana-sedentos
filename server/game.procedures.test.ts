@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
-vi.mock("./db", () => ({
+vi.mock("./db", async importOriginal => ({
+  ...await importOriginal<typeof import("./db")>(),
   createParticipantProfile: vi.fn(),
   deriveRoundState: vi.fn(),
   ensureDefaultTeams: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock("./db", () => ({
 
 vi.mock("./storage", () => ({ storagePut: vi.fn() }));
 
-import { startParticipantQuestion, submitParticipantAnswer } from "./db";
+import { buildRankings, getRankingData, startParticipantQuestion, submitParticipantAnswer } from "./db";
 import { appRouter } from "./routers";
 
 function participantContext(): TrpcContext {
@@ -45,6 +46,31 @@ function participantContext(): TrpcContext {
 }
 
 describe("procedures protegidas da gincana", () => {
+  it("retorna uma página autenticada com posições globais e somente dados permitidos", async () => {
+    const ranking = buildRankings([], Array.from({ length: 23 }, (_, index) => ({
+      id: index + 1, teamId: 1, nickname: `Jogador ${String(index + 1).padStart(2, "0")}`,
+      fullName: "Nome privado", avatarUrl: "https://storage/private", avatarKey: "private-key", isBlocked: false,
+    })), [], []);
+    vi.mocked(getRankingData).mockResolvedValue(ranking);
+    const caller = appRouter.createCaller(participantContext());
+    const page = await caller.game.participantRanking({ page: 2 });
+    expect(page).toMatchObject({ total: 23, page: 2, pageSize: 10, totalPages: 3 });
+    expect(page.items).toHaveLength(10);
+    expect(page.items[0]).toEqual({ participantId: 11, teamId: 1, nickname: "Jogador 11", rank: 11, points: 0, avatarUrl: "/api/media/avatar/11" });
+    expect((await caller.game.participantRanking({ page: 99 })).items).toHaveLength(3);
+    expect((await caller.game.participantRanking({})).page).toBe(1);
+  });
+
+  it("rejeita consulta de fotos do ranking sem sessão", async () => {
+    const caller = appRouter.createCaller({ ...participantContext(), user: null });
+    await expect(caller.game.participantRanking({ page: 1 })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])("rejeita página inválida %s", async page => {
+    const caller = appRouter.createCaller(participantContext());
+    await expect(caller.game.participantRanking({ page })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
   it("associa a submissão de resposta à identidade autenticada, não a um id do cliente", async () => {
     vi.mocked(submitParticipantAnswer).mockResolvedValueOnce({ success: true });
     const caller = appRouter.createCaller(participantContext());
