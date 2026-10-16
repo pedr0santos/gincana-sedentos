@@ -262,7 +262,7 @@ export function canSubmitParticipantAnswer(input: {
 
 export function buildRankings(
   teamRows: Array<{ id: number; name: string; color: string; accentColor: string; symbol: string; slug: string; description: string | null; logoUrl: string | null; logoKey: string | null; createdAt: Date; updatedAt: Date }>,
-  profileRows: Array<{ id: number; teamId: number; nickname: string; fullName: string; avatarUrl: string | null; isBlocked: boolean }>,
+  profileRows: Array<{ id: number; teamId: number; nickname: string; fullName: string; avatarUrl: string | null; avatarKey?: string | null; isBlocked: boolean }>,
   scoreRows: Array<{ participantId: number; points: number; correctResponseTimeMs?: number }>,
   adjustmentRows: Array<{ participantId: number; points: number }>
 ) {
@@ -281,7 +281,7 @@ export function buildRankings(
   const participants = profileRows
     .map(profile => {
       const total = totalsByParticipant.get(profile.id) ?? { points: 0, correctResponseTimeMs: 0 };
-      return { participantId: profile.id, teamId: profile.teamId, nickname: profile.nickname, fullName: profile.fullName, avatarUrl: profile.avatarUrl, isBlocked: profile.isBlocked, points: total.points, correctResponseTimeMs: total.correctResponseTimeMs };
+      return { participantId: profile.id, teamId: profile.teamId, nickname: profile.nickname, fullName: profile.fullName, avatarUrl: profile.avatarUrl, hasAvatar: Boolean(profile.avatarKey), isBlocked: profile.isBlocked, points: total.points, correctResponseTimeMs: total.correctResponseTimeMs };
     })
     .sort((a, b) => b.points - a.points || a.correctResponseTimeMs - b.correctResponseTimeMs || a.nickname.localeCompare(b.nickname))
     .map((participant, index) => ({ ...participant, rank: index + 1 }));
@@ -451,6 +451,22 @@ export function toPublicRanking(ranking: ReturnType<typeof buildRankings>) {
 
 export async function getPublicRankingData() {
   return toPublicRanking(await getRankingData());
+}
+
+export function toParticipantRankingPage(ranking: ReturnType<typeof buildRankings>, requestedPage: number) {
+  const pageSize = 10;
+  const total = ranking.participants.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const items = ranking.participants.slice((page - 1) * pageSize, page * pageSize).map(participant => ({
+    participantId: participant.participantId,
+    teamId: participant.teamId,
+    nickname: participant.nickname,
+    points: participant.points,
+    rank: participant.rank,
+    avatarUrl: participant.hasAvatar ? `/api/media/avatar/${participant.participantId}` : null,
+  }));
+  return { items, total, page, pageSize, totalPages };
 }
 
 export async function getParticipantHistory(participantId: number) {

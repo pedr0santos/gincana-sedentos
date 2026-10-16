@@ -13,6 +13,7 @@ import {
   getProfileByUserId,
   getRankingData,
   getPublicRankingData,
+  toParticipantRankingPage,
   getRoundById,
   getRoundQuestionSet,
   getParticipantRoundProgress,
@@ -111,6 +112,9 @@ export const appRouter = router({
       return { profile: withProtectedAvatar(profile), personal, team, ranking: ranking.teams, featuredRound, serverTime: Date.now() };
     }),
     ranking: publicProcedure.query(async () => getPublicRankingData()),
+    participantRanking: protectedProcedure
+      .input(z.object({ page: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).default(1) }))
+      .query(async ({ input }) => toParticipantRankingPage(await getRankingData(), input.page)),
     myTeam: protectedProcedure.query(async ({ ctx }) => {
       const profile = await getProfileByUserId(ctx.user.id);
       if (!profile) return null;
